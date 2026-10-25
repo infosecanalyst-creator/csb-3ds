@@ -1,0 +1,74 @@
+# csb-3ds: builds CSBwin (Dungeon Master / Chaos Strikes Back) as a 3DS homebrew .3dsx
+# Run from the CSB/src directory after patch_csb_3ds.py and copying n3ds/* into it:
+#   make -f Makefile.3ds
+# Needs devkitARM + libctru, and SDL2 built for 3DS (build.sh does that and passes SDL_CFLAGS/SDL_LIBS).
+
+ifeq ($(strip $(DEVKITPRO)),)
+DEVKITPRO := /opt/devkitpro
+endif
+DEVKITARM ?= $(DEVKITPRO)/devkitARM
+CTRULIB   := $(DEVKITPRO)/libctru
+PORTLIBS  := $(DEVKITPRO)/portlibs/3ds
+TOOLS     := $(DEVKITPRO)/tools/bin
+PREFIX    := $(DEVKITARM)/bin/arm-none-eabi-
+CC        := $(PREFIX)gcc
+CXX       := $(PREFIX)g++
+PKGCONFIG := $(PORTLIBS)/bin/arm-none-eabi-pkg-config
+
+TARGET    := csb3ds
+APP_TITLE := Dungeon Master
+APP_DESC  := DM1 / Chaos Strikes Back (CSBwin)
+APP_AUTH  := csb-3ds
+ICON      := $(if $(wildcard icon.png),icon.png,$(CTRULIB)/default_icon.png)
+
+ARCH     := -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft
+DEFINES  := -D__3DS__ -D_LINUX -DRGB655 -DSDL20 -DIMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS
+SDL_CFLAGS := $(shell $(PKGCONFIG) --cflags sdl2 2>/dev/null || echo -I$(PORTLIBS)/include/SDL2 -D_GNU_SOURCE=1)
+SDL_LIBS   := $(shell $(PKGCONFIG) --libs sdl2 2>/dev/null || echo -L$(PORTLIBS)/lib -lSDL2)
+INCLUDES := -I. -Isdl_sound -Iimgui -Ifnmatch -I$(PORTLIBS)/include -I$(CTRULIB)/include $(SDL_CFLAGS)
+CFLAGS   := -include n3ds_compat.h -O2 -g -ffunction-sections -fno-strict-aliasing $(ARCH) $(DEFINES) $(INCLUDES) -w
+CXXFLAGS := $(CFLAGS) -std=gnu++11
+LDFLAGS  := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(TARGET).map -Wl,--gc-sections
+LIBS     := -L$(PORTLIBS)/lib -L$(CTRULIB)/lib -lSDL2main $(SDL_LIBS) -lctru -lm
+
+ENGINE := DSA data Code11f52 Graphics Magic CSBCode Timer Character system SmartDiscard \
+          VBL Mouse Recording LinCSBUI CSBlinux Code51a4 CSBUI MoveObject Hint Monster \
+          Code17818 Viewport AsciiDump Menu Chaos SaveGame Translation Bitmaps md5C utility \
+          WinScreen Code13ea4 Codea59a RC4 Attack Sound Code1f9e6 Code390e Code222ea Statistics \
+          SoundMixer n3ds_platform
+# ImGui is compiled and linked because CSBlinux.cpp references it, but never runs on 3DS.
+IMGUI  := imgui/imgui imgui/imgui_draw imgui/imgui_impl_sdl2 imgui/imgui_tables \
+          imgui/imgui_widgets imgui/imgui_impl_sdlrenderer2 n3ds_filebrowser_stub
+CSRC   := confile sdl_sound/SDL_sound sdl_sound/SDL_sound_mp3 sdl_sound/SDL_sound_raw \
+          sdl_sound/SDL_sound_wav fnmatch/fnmatch
+
+OBJDIR := obj3ds
+OBJS   := $(addprefix $(OBJDIR)/,$(addsuffix .o,$(ENGINE) $(IMGUI) $(CSRC)))
+
+all: $(TARGET).3dsx
+
+$(OBJDIR)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	@echo "  CXX $<"
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	@echo "  CC  $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET).elf: $(OBJS)
+	@echo "  LD  $@"
+	@$(CXX) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
+
+$(TARGET).smdh: $(ICON)
+	@$(TOOLS)/smdhtool --create "$(APP_TITLE)" "$(APP_DESC)" "$(APP_AUTH)" $(ICON) $@
+
+$(TARGET).3dsx: $(TARGET).elf $(TARGET).smdh
+	@$(TOOLS)/3dsxtool $< $@ --smdh=$(TARGET).smdh
+	@echo "Built $@"
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET).elf $(TARGET).3dsx $(TARGET).smdh $(TARGET).map
+
+.PHONY: all clean
