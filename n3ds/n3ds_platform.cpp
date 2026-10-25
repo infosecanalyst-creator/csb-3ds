@@ -121,11 +121,16 @@ static void fillRect(u16 *fb, int w, int x0, int y0, int rw, int rh, u16 c)
   }
 }
 
+// Nearest-neighbour scale, written column by column because the framebuffer is
+// stored rotated (each screen column is contiguous). No divisions in the inner loop.
 static void blitRegion(u16 *fb, const Region &r)
 {
-  for (int y = 0; y < r.dh; y++) {
-    const u16 *srow = n3ds_st_buffer + (r.sy + y * r.sh / r.dh) * ST_W + r.sx;
-    for (int x = 0; x < r.dw; x++) putpx(fb, r.dx + x, r.dy + y, srow[x * r.sw / r.dw]);
+  static int srcRow[240];
+  for (int y = 0; y < r.dh; y++) srcRow[y] = (r.sy + y * r.sh / r.dh) * ST_W;
+  for (int x = 0; x < r.dw; x++) {
+    const u16 *scol = n3ds_st_buffer + r.sx + x * r.sw / r.dw;
+    u16 *dcol = fb + (r.dx + x) * 240 + (239 - r.dy);
+    for (int y = 0; y < r.dh; y++) dcol[-y] = scol[srcRow[y]];
   }
 }
 
@@ -202,11 +207,21 @@ static inline void queueKey(int sym, int scan, int delayMs) { queueAction(0, sym
 static bool touching = false, touchRight = false, touchOnButton = false;
 static int lastSTX = 0, lastSTY = 0;   // where the last tap put the game cursor
 
+static u64 parkCursorAt = 0;   // when to move the arrow out of the way (0 = no)
+static const int PARK_X = 300, PARK_Y = 8;   // empty space right of the 4th portrait
+
 static bool rightClickPending = false;
 static int rightClickX, rightClickY;
 
 static void runActions(void)
 {
+  if (parkCursorAt && svcGetSystemTick() >= parkCursorAt) {
+    parkCursorAt = 0;
+    if (!touching && n3ds_engine_cursor_is_arrow()) {
+      n3ds_send_mouse_move(PARK_X, PARK_Y);
+      lastSTX = PARK_X; lastSTY = PARK_Y;
+    }
+  }
   if (rightClickPending) {   // release the right button one poll after pressing it
     n3ds_send_mouse_button(true, false, rightClickX, rightClickY);
     n3ds_send_mouse_move(lastSTX, lastSTY);   // put the cursor back where the player left it
@@ -271,23 +286,43 @@ static void toggleLeaderInventory(void) { queueAction(1, 100, 100, 0); }
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
-static void blitViewportStereo(u16 *fb, const Region &r, float eye, float slider)
+// Viewport at 1.5x with per-pixel horizontal disparity from the depth map. The source
+// column for every output pixel only depends on the slider, so it is cached per eye
+// and rebuilt when the slider moves (no float math per frame).
+enum { SV_W = 336, SV_H = 204 };
+static unsigned char stereoCol[2][SV_H][SV_W];
+static float stereoCachedSlider = -1.0f;
+
+static void buildStereoTables(const Region &r, float slider)
 {
   const float k = slider * MAX_DISPARITY * 0.5f / 255.0f;
-  for (int y = 0; y < r.dh; y++) {
-    int sy = y * r.sh / r.dh;
-    const u16 *srow = n3ds_st_buffer + (r.sy + sy) * ST_W + r.sx;
-    const unsigned char *drow = depthMap[sy];
-    for (int x = 0; x < r.dw; x++) {
-      int sx = x * r.sw / r.dw;
-      if (k != 0.0f) {
-        // Left eye samples to the right and vice versa -> far content sits behind the screen.
-        float shift = -eye * k * drow[sx];
-        int sx2 = (int)((x + shift) * r.sw / (float)r.dw + 0.5f);
-        sx = sx2 < 0 ? 0 : (sx2 >= r.sw ? r.sw - 1 : sx2);
+  for (int e = 0; e < 2; e++) {
+    float eye = e ? +1.0f : -1.0f;
+    for (int y = 0; y < r.dh; y++) {
+      const unsigned char *drow = depthMap[y * r.sh / r.dh];
+      for (int x = 0; x < r.dw; x++) {
+        int sx = x * r.sw / r.dw;
+        if (k != 0.0f) {
+          // Left eye samples to the right and vice versa -> far content sits behind the screen.
+          float shift = -eye * k * drow[sx];
+          int sx2 = (int)((x + shift) * r.sw / (float)r.dw + 0.5f);
+          sx = sx2 < 0 ? 0 : (sx2 >= r.sw ? r.sw - 1 : sx2);
+        }
+        stereoCol[e][y][x] = (unsigned char)sx;
       }
-      putpx(fb, r.dx + x, r.dy + y, srow[sx]);
     }
+  }
+  stereoCachedSlider = slider;
+}
+
+static void blitViewportStereo(u16 *fb, const Region &r, float eye, float slider)
+{
+  if (slider != stereoCachedSlider) buildStereoTables(r, slider);
+  const int e = eye > 0 ? 1 : 0;
+  for (int y = 0; y < r.dh; y++) {
+    const u16 *srow = n3ds_st_buffer + (r.sy + y * r.sh / r.dh) * ST_W + r.sx;
+    const unsigned char *cols = stereoCol[e][y];
+    for (int x = 0; x < r.dw; x++) putpx(fb, r.dx + x, r.dy + y, srow[cols[x]]);
   }
 }
 
@@ -503,6 +538,11 @@ static void handleTouch(u32 held)
     if (!touchOnButton) {
       DBG("[n3ds] touch UP st=(%d,%d)\n", lastSTX, lastSTY);
       n3ds_send_mouse_button(touchRight, false, lastSTX, lastSTY);
+      // The engine draws its own cursor into the picture, so after a tap in the dungeon
+      // the arrow would sit in the big view on the top screen. Park the plain arrow in
+      // the empty end of the portrait strip (bottom screen only). A held item keeps
+      // following the finger: its picture is how DM shows what is in your hand.
+      if (layout == LAYOUT_DUNGEON && n3ds_engine_cursor_is_arrow()) parkCursorAt = svcGetSystemTick() + 120 * MS;
     }
   }
 }
@@ -548,9 +588,22 @@ bool n3ds_poll(void)
     toggleLeaderInventory();                                                      // SELECT: bag
   // Champion attacks: A/B/X/Y = champion 1/2/3/4, one press per attack.
   // Plain = first attack, with ZL = second, with ZR = third (the attack menu's three rows).
-  if (layout == LAYOUT_DUNGEON)
-    for (int c = 0; c < 4; c++)
-      if (down & FACE_BUTTON[c]) quickAttack(c, (held & KEY_ZL) ? 1 : (held & KEY_ZR) ? 2 : 0);
+  // Holding the button keeps attacking: the attack is re-issued every 0.6 s, and
+  // the engine itself ignores it until the champion's weapon has recovered.
+  static u64 nextAutoAttack[4];
+  if (layout == LAYOUT_DUNGEON) {
+    u64 t = svcGetSystemTick();
+    for (int c = 0; c < 4; c++) {
+      int row = (held & KEY_ZL) ? 1 : (held & KEY_ZR) ? 2 : 0;
+      if (down & FACE_BUTTON[c]) {
+        quickAttack(c, row);
+        nextAutoAttack[c] = t + 600 * MS;
+      } else if ((held & FACE_BUTTON[c]) && t >= nextAutoAttack[c] && actCount == 0) {
+        quickAttack(c, row);
+        nextAutoAttack[c] = t + 600 * MS;
+      }
+    }
+  }
 
   static u64 nextRepeat[sizeof(moveMap) / sizeof(moveMap[0])];
   u64 now = svcGetSystemTick();

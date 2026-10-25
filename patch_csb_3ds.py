@@ -143,6 +143,7 @@ bool n3ds_engine_inventory_open(void)  { return d.SelectedCharacterOrdinal != 0;
 bool n3ds_engine_candidate_shown(void) { return d.PotentialCharacterOrdinal != 0; } // Hall of Champions mirror
 int  n3ds_engine_party_size(void)      { return d.NumCharacter < 0 ? 0 : (d.NumCharacter > 4 ? 4 : d.NumCharacter); }
 int  n3ds_engine_attack_menu_owner(void) { return d.AttackingCharacterOrdinal; }
+bool n3ds_engine_cursor_is_arrow(void)  { return d.CursorShape == 0; }
 void n3ds_engine_champion_stats(int i, int out[6])
 {
   CHARDESC &c = d.hero[i];

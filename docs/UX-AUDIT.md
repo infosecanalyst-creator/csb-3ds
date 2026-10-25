@@ -35,6 +35,9 @@ saving, sleeping or recruiting champions.
 | 10 | 3D depth | slider + SELECT toggle | slider only (sliding it down turns depth off); SELECT freed for inventory | Platform convention |
 | 11 | Accidental input | face buttons replayed clicks on every screen | shortcuts that replay clicks only run in the dungeon view, so they can't hit RESUME or menu buttons by accident | |
 | 12 | Quit | START+SELECT asks first | unchanged | |
+| 13 | Sustained melee | press again every time the weapon recovers | **hold** A/B/X/Y: the attack is re-issued every 0.6 s and lands as soon as the weapon is ready | Auto-attack in modern action RPGs |
+| 14 | Cursor after a tap in the mini view | arrow stays in the big view on top | plain arrow parks in the empty end of the portrait strip (bottom only); a held item still follows your finger | |
+| 15 | Frame cost | divisions and float math per pixel | lookup tables; same pixels, about 3.3x faster to draw | |
 
 Typical fight, four champions, two rounds:
 **before** 16 taps (2 per champion attack); **after** 8 presses, with the party's
@@ -47,7 +50,7 @@ Healing loop (caster re-casts a 3-rune heal): **before** 5 taps; **after** 1.
 |---|---|---|
 | D-pad / Circle Pad | step, turn | step, turn |
 | L / R | strafe | strafe |
-| A / B / X / Y | champion 1/2/3/4 first attack | — |
+| A / B / X / Y | champion 1/2/3/4 first attack (hold to repeat) | — |
 | ZL + A/B/X/Y | second attack | — |
 | ZR + A/B/X/Y | third attack | — |
 | ZR + tap | right click | right click |
@@ -70,8 +73,6 @@ Healing loop (caster re-casts a 3-rune heal): **before** 5 taps; **after** 1.
    rune row can be laid out at 2x in the RECAST/BAG area.
 2. Whether RECAST should remember a spell per champion (four small buttons) instead
    of only the most recent one.
-3. Where the cursor should rest after a tap in the mini viewport: today it stays
-   where you tapped, so it also shows in the big view on top.
-4. Champion mirror (resurrect / reincarnate) and the save menu use the full-screen
+3. Champion mirror (resurrect / reincarnate) and the save menu use the full-screen
    layout at 1:1; check they are comfortable with a finger.
-5. Stereo depth strength and the vanishing-point values on real hardware.
+4. Stereo depth strength and the vanishing-point values on real hardware.

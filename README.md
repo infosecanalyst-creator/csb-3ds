@@ -32,7 +32,7 @@ inventory at 1.4x so the slots are finger-sized.
 |---|---|
 | D-pad / Circle Pad | Step forward/back, turn left/right (hold to keep going) |
 | **L** / **R** | Strafe left / right |
-| **A / B / X / Y** | Champion 1 / 2 / 3 / 4 attacks (first attack) in one press |
+| **A / B / X / Y** | Champion 1 / 2 / 3 / 4 attacks (first attack) in one press; hold to keep attacking whenever the weapon is ready |
 | **ZL** + A/B/X/Y | That champion's second attack |
 | **ZR** + A/B/X/Y | That champion's third attack |
 | **RECAST** button | Repeat the last spell (shows the caster's colour and rune count) |
