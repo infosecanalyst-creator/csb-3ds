@@ -13,10 +13,13 @@ The layout follows the game's own state, so there is nothing to toggle.
 
 | Screen | What it shows |
 |---|---|
-| **Top** (400x240) | The dungeon view at 1.5x (336x204) with the message strip underneath. The 3D slider adds stereoscopic depth: the corridor recedes into the screen, the near walls sit at the screen plane. |
-| **Bottom** (320x240) | Controls only: champion portraits and hands across the top at 1:1, spell runes / attack menu / movement arrows at 1.5x on the right, and a small framed copy of the dungeon view on the left for grabbing items, pressing wall buttons and opening doors. |
+| **Top** (400x240) | The dungeon view at 1.5x (336x204) with the message strip underneath, and every champion's health / stamina / mana bars in the side margins (health turns red below 25%). The 3D slider adds stereoscopic depth. |
+| **Bottom** (320x240) | Controls only: champion portraits and hands at 1:1, spell runes / attack menu / movement arrows at 1.5x, a small framed copy of the dungeon view for grabbing items, pressing wall buttons and opening doors, and the RECAST and BAG buttons. |
 
-**Everywhere else** (title, entrance, menus, inventory, freeze, sleep, save menu)
+**Inventory open**: the whole screen on top; on the bottom, the portraits plus the
+inventory at 1.4x so the slots are finger-sized.
+
+**Everywhere else** (title, entrance, menus, champion mirror, freeze, sleep, save menu)
 
 | Screen | What it shows |
 |---|---|
@@ -27,18 +30,22 @@ The layout follows the game's own state, so there is nothing to toggle.
 
 | Input | Action |
 |---|---|
-| Tap the bottom screen | Left click (everything the mouse did: pick up, cast, attack, open inventory) |
-| **ZR** held + tap | Right click |
-| D-pad / Circle Pad ↑ ↓ | Step forward / back (hold to keep walking) |
-| D-pad / Circle Pad ← → | Turn left / right |
+| D-pad / Circle Pad | Step forward/back, turn left/right (hold to keep going) |
 | **L** / **R** | Strafe left / right |
-| **A / B / X / Y** | Attack with champion 1 / 2 / 3 / 4 (first action) |
-| **START** | Freeze game (Esc) |
-| **SELECT** | Toggle the stereo depth effect |
+| **A / B / X / Y** | Champion 1 / 2 / 3 / 4 attacks (first attack) in one press |
+| **ZL** + A/B/X/Y | That champion's second attack |
+| **ZR** + A/B/X/Y | That champion's third attack |
+| **RECAST** button | Repeat the last spell (shows the caster's colour and rune count) |
+| **SELECT** or **BAG** button | Open / close the leader's inventory |
+| Tap | Left click on whatever is under your finger |
+| **ZR** held + tap | Right click |
+| **START** | Freeze game |
 | **START + SELECT** | Quit (asks first) |
+| 3D slider | Stereo depth (slide down to turn it off) |
 
-Button mappings ride on the `[keys]` section of `csb.cfg`, so anything CSBwin's keyboard
-shortcuts can do can be remapped there.
+The attack and inventory shortcuts only act in the dungeon (and SELECT in the
+inventory), so they can never press a menu button by accident. Rationale and tap
+counts: [docs/UX-AUDIT.md](docs/UX-AUDIT.md).
 
 ## Install
 

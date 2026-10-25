@@ -22,6 +22,12 @@ static bool dbgEnabled = false;
 static unsigned dbgPolls = 0, dbgPresents = 0;
 static int dbgTX = -1, dbgTY = -1;   // last tap, bottom-screen pixels
 
+static inline u16 rgb565(int r, int g, int b) { return (u16)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)); }
+
+// Dungeon Master's champion colours, by party slot.
+static const u16 CHAMP_COLOR[4] = {
+  rgb565(0, 204, 0), rgb565(238, 221, 0), rgb565(238, 0, 0), rgb565(51, 102, 255) };
+
 // ---------------------------------------------------------------------------
 // Screen geometry
 // ---------------------------------------------------------------------------
@@ -40,9 +46,12 @@ enum {
 // A rectangle of the ST screen drawn (nearest-neighbour scaled) into a rectangle
 // of a 3DS screen. Touch input is mapped back through the same rectangles.
 struct Region { int sx, sy, sw, sh, dx, dy, dw, dh; };
+struct Rect { int x, y, w, h; };
+static inline bool inRect(const Rect &r, int x, int y) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
 
 // --- Top screen -----------------------------------------------------------
-// Dungeon: viewport at 1.5x (336x204) with the message strip underneath.
+// Dungeon: viewport at 1.5x (336x204) with the message strip underneath, party
+// vitals (health / stamina / mana) in the side margins where the eyes already are.
 static const Region TOP_DUNGEON_VP  = { VP_X, VP_Y, VP_W, VP_H, (TOP_W - 336) / 2, 0, 336, 204 };
 static const Region TOP_DUNGEON_TXT = { 0, TXT_Y, ST_W, TXT_H, (TOP_W - 320) / 2, 207, 320, TXT_H };
 // Everything else (title, entrance, menus, inventory): whole screen at 1.2x, centred.
@@ -52,18 +61,26 @@ static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, (TOP_W - 384) / 2, 0, 
 // Dungeon: controls only, sized for fingers.
 //   champion portraits/hands at 1:1 across the top,
 //   spell runes + attack menu + movement arrows at 1.5x on the right,
-//   a small copy of the viewport on the left for grabbing items, wall buttons, doors.
+//   a small copy of the viewport on the left for grabbing items, wall buttons, doors,
+//   and two 3DS-only shortcut buttons in the spare space: RECAST and BAG.
 static const Region BOT_DUNGEON[] = {
   { 0,     0,    ST_W,  PORT_H, 0,   0,  320, PORT_H },        // portraits
   { CTL_X, VP_Y, CTL_W, VP_H,   176, 35, 144, 204    },        // controls 1.5x
   { VP_X,  VP_Y, VP_W,  VP_H,   0,   84, 176, 107    },        // mini viewport (0.79x)
 };
-// Everything else: the whole screen at 1:1 (exact mouse mapping, inventory at full size).
+static const Rect BTN_RECAST = { 4, 38, 168, 42 };              // above the mini viewport
+static const Rect BTN_BAG    = { 4, 195, 168, 42 };             // below the mini viewport
+// Inventory: portraits 1:1 + the inventory panel at 1.4x, so slots are finger-sized.
+static const Region BOT_INVENTORY[] = {
+  { 0,    0,    ST_W, PORT_H, 0, 0,  320, PORT_H },
+  { VP_X, VP_Y, VP_W, VP_H,   3, 37, 314, 190    },
+};
+// Everything else: the whole screen at 1:1 (exact mouse mapping).
 static const Region BOT_FULL[] = {
   { 0, 0, ST_W, ST_H, 0, (BOT_H - ST_H) / 2, ST_W, ST_H },
 };
 
-enum Layout { LAYOUT_FULL = 0, LAYOUT_DUNGEON = 1 };
+enum Layout { LAYOUT_FULL = 0, LAYOUT_DUNGEON = 1, LAYOUT_INVENTORY = 2 };
 static Layout layout = LAYOUT_FULL;
 
 // Stereoscopic depth -------------------------------------------------------
@@ -71,11 +88,11 @@ static Layout layout = LAYOUT_FULL;
 // rectangles around the vanishing point. A rectangular (Chebyshev) distance from
 // that point is a decent depth estimate for corridors and walls: the centre is
 // far away (pushed into the screen), the edges sit at the screen plane.
+// The 3D slider is the only control (slide it down to turn depth off).
 static const float VP_HORIZON_X = 112.0f;  // tune on hardware if the corridor looks bent
 static const float VP_HORIZON_Y = 68.0f;
 static const float MAX_DISPARITY = 7.0f;   // top-screen pixels at full slider
 static unsigned char depthMap[VP_H][VP_W];  // 0 = screen plane .. 255 = farthest
-static bool depthEnabled = true;
 
 static void buildDepthMap(void)
 {
@@ -89,8 +106,20 @@ static void buildDepthMap(void)
     }
 }
 
+// ---------------------------------------------------------------------------
+// Drawing helpers
+// ---------------------------------------------------------------------------
 // Framebuffers are rotated: pixel (x, y) lives at x*240 + (239 - y).
 static inline void putpx(u16 *fb, int x, int y, u16 c) { fb[x * 240 + (239 - y)] = c; }
+
+static void fillRect(u16 *fb, int w, int x0, int y0, int rw, int rh, u16 c)
+{
+  for (int x = x0; x < x0 + rw; x++) {
+    if (x < 0 || x >= w) continue;
+    for (int y = y0; y < y0 + rh; y++)
+      if (y >= 0 && y < 240) putpx(fb, x, y, c);
+  }
+}
 
 static void blitRegion(u16 *fb, const Region &r)
 {
@@ -100,23 +129,151 @@ static void blitRegion(u16 *fb, const Region &r)
   }
 }
 
-static void frameRegion(u16 *fb, const Region &r, u16 c)   // 1px border just outside
+static void frameRect(u16 *fb, int w, int x0, int y0, int rw, int rh, u16 c)   // 1px outline
 {
-  for (int x = r.dx - 1; x <= r.dx + r.dw; x++) {
-    if (x < 0 || x >= BOT_W) continue;
-    if (r.dy - 1 >= 0) putpx(fb, x, r.dy - 1, c);
-    if (r.dy + r.dh < BOT_H) putpx(fb, x, r.dy + r.dh, c);
-  }
-  for (int y = r.dy; y < r.dy + r.dh; y++) {
-    if (r.dx - 1 >= 0) putpx(fb, r.dx - 1, y, c);
-    if (r.dx + r.dw < BOT_W) putpx(fb, r.dx + r.dw, y, c);
+  fillRect(fb, w, x0, y0, rw, 1, c);
+  fillRect(fb, w, x0, y0 + rh - 1, rw, 1, c);
+  fillRect(fb, w, x0, y0, 1, rh, c);
+  fillRect(fb, w, x0 + rw - 1, y0, 1, rh, c);
+}
+
+// Tiny 5x7 font, just the characters the 3DS-only buttons use.
+struct Glyph { char c; unsigned char rows[7]; };
+static const Glyph FONT[] = {
+  {'A',{0x0E,0x11,0x11,0x1F,0x11,0x11,0x11}}, {'B',{0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E}},
+  {'C',{0x0E,0x11,0x10,0x10,0x10,0x11,0x0E}}, {'E',{0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F}},
+  {'G',{0x0E,0x11,0x10,0x17,0x11,0x11,0x0F}}, {'L',{0x10,0x10,0x10,0x10,0x10,0x10,0x1F}},
+  {'N',{0x11,0x19,0x15,0x13,0x11,0x11,0x11}}, {'O',{0x0E,0x11,0x11,0x11,0x11,0x11,0x0E}},
+  {'P',{0x1E,0x11,0x11,0x1E,0x10,0x10,0x10}}, {'R',{0x1E,0x11,0x11,0x1E,0x14,0x12,0x11}},
+  {'S',{0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E}}, {'T',{0x1F,0x04,0x04,0x04,0x04,0x04,0x04}},
+  {'Y',{0x11,0x11,0x0A,0x04,0x04,0x04,0x04}}, {' ',{0,0,0,0,0,0,0}},
+};
+
+static void drawText(u16 *fb, int w, int x, int y, const char *s, u16 c, int scale)
+{
+  for (; *s; s++, x += 6 * scale) {
+    const Glyph *g = NULL;
+    for (size_t i = 0; i < sizeof(FONT) / sizeof(FONT[0]); i++) if (FONT[i].c == *s) g = &FONT[i];
+    if (!g) continue;
+    for (int r = 0; r < 7; r++)
+      for (int b = 0; b < 5; b++)
+        if (g->rows[r] & (0x10 >> b)) fillRect(fb, w, x + b * scale, y + r * scale, scale, scale, c);
   }
 }
 
-// Viewport at 1.5x with per-pixel horizontal disparity from the depth map.
+// ---------------------------------------------------------------------------
+// RECAST: remember each champion's last spell (hooked in Magic.cpp) and replay it
+// ---------------------------------------------------------------------------
+static signed char lastSpell[4][4];
+static int lastCaster = -1;
+
+void n3ds_note_spell(int caster, const signed char *incantation)
+{
+  if (caster < 0 || caster > 3 || incantation[0] == 0) return;
+  memcpy(lastSpell[caster], incantation, 4);
+  lastCaster = caster;
+  DBG("[n3ds] spell noted: caster %d runes %d %d %d %d\n", caster,
+      incantation[0], incantation[1], incantation[2], incantation[3]);
+}
+
+// ---------------------------------------------------------------------------
+// Scripted input: short sequences of key presses / clicks, spaced out so the
+// engine's small mouse queue (4 entries) never overflows.
+// ---------------------------------------------------------------------------
+struct Action { int kind, a, b; u64 dueTicks; };   // kind 0 = key(sym=a, scan=b), 1 = right-click at (a,b)
+static Action actQueue[24];
+static int actHead = 0, actCount = 0;
+static const u64 MS = SYSCLOCK_ARM11 / 1000;
+
+static void queueAction(int kind, int a, int b, int delayMs)
+{
+  if (actCount == (int)(sizeof(actQueue) / sizeof(actQueue[0]))) return;
+  u64 base = svcGetSystemTick();
+  if (actCount) {   // schedule relative to the last queued action
+    const Action &last = actQueue[(actHead + actCount - 1) % 24];
+    if (last.dueTicks > base) base = last.dueTicks;
+  }
+  Action &n = actQueue[(actHead + actCount) % 24];
+  n.kind = kind; n.a = a; n.b = b; n.dueTicks = base + delayMs * MS;
+  actCount++;
+}
+static inline void queueKey(int sym, int scan, int delayMs) { queueAction(0, sym, scan, delayMs); }
+
+static bool touching = false, touchRight = false, touchOnButton = false;
+static int lastSTX = 0, lastSTY = 0;   // where the last tap put the game cursor
+
+static bool rightClickPending = false;
+static int rightClickX, rightClickY;
+
+static void runActions(void)
+{
+  if (rightClickPending) {   // release the right button one poll after pressing it
+    n3ds_send_mouse_button(true, false, rightClickX, rightClickY);
+    n3ds_send_mouse_move(lastSTX, lastSTY);   // put the cursor back where the player left it
+    rightClickPending = false;
+  }
+  u64 now = svcGetSystemTick();
+  while (actCount && actQueue[actHead].dueTicks <= now) {
+    Action &a = actQueue[actHead];
+    if (a.kind == 0) {
+      n3ds_send_key(a.a, a.b);
+    } else {
+      n3ds_send_mouse_move(a.a, a.b);
+      n3ds_send_mouse_button(true, true, a.a, a.b);
+      rightClickX = a.a; rightClickY = a.b; rightClickPending = true;
+      actHead = (actHead + 1) % 24; actCount--;
+      break;   // the release goes out on the next poll
+    }
+    actHead = (actHead + 1) % 24; actCount--;
+  }
+}
+
+// Keyboard shortcuts from csb.cfg ([keys] mscan entries), as SDL scancodes.
+static const int ATTACK_KEY_SYM[3][4]  = { {'q','w','e','r'}, {'a','s','d','f'}, {'z','x','c','v'} };
+static const int ATTACK_KEY_SCAN[3][4] = { {0x14,0x1a,0x08,0x15}, {0x04,0x16,0x07,0x09}, {0x1d,0x1b,0x06,0x19} };
+enum { SC_TAB = 0x2b, SC_SPACE = 0x2c, SC_F1 = 0x3a, SC_1 = 0x1e };
+
+// One press = one attack: open the champion's attack menu (closing someone else's
+// first) and pick attack row 0..2. Clicking a hand that is still recovering does
+// nothing, and the follow-up click then lands on that same hand, so nothing stray happens.
+static void quickAttack(int champ, int row)
+{
+  if (champ >= n3ds_engine_party_size()) return;
+  int owner = n3ds_engine_attack_menu_owner();   // 0 = no menu, else champion ordinal
+  if (owner == champ + 1) {
+    queueKey(ATTACK_KEY_SYM[row][champ], ATTACK_KEY_SCAN[row][champ], 0);
+    return;
+  }
+  if (owner != 0) queueKey('\t', SC_TAB, 0);                       // "pass" closes the other menu
+  queueKey(ATTACK_KEY_SYM[0][champ], ATTACK_KEY_SCAN[0][champ], owner ? 90 : 0);   // open menu
+  queueKey(ATTACK_KEY_SYM[row][champ], ATTACK_KEY_SCAN[row][champ], 140);          // choose attack
+  DBG("[n3ds] quick attack champ %d row %d (menu owner %d)\n", champ, row, owner);
+}
+
+// Replay the last spell: select the caster's tab (F1..F4), enter the runes (1..6), cast (space).
+static void recastLastSpell(void)
+{
+  if (lastCaster < 0 || lastCaster >= n3ds_engine_party_size()) return;
+  const signed char *inc = lastSpell[lastCaster];
+  queueKey(0x4000003a + lastCaster, SC_F1 + lastCaster, 0);        // SDLK_F1.. / caster tab
+  for (int i = 0; i < 4 && inc[i]; i++) {
+    int button = inc[i] - 96 - 6 * i;                               // see Magic.cpp / CSBCode.cpp
+    if (button < 0 || button > 5) break;
+    queueKey('1' + button, SC_1 + button, 110);
+  }
+  queueKey(' ', SC_SPACE, 140);
+  DBG("[n3ds] recast: caster %d\n", lastCaster);
+}
+
+// Right-click in the viewport toggles the leader's inventory (DM's own mouse convention).
+static void toggleLeaderInventory(void) { queueAction(1, 100, 100, 0); }
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
 static void blitViewportStereo(u16 *fb, const Region &r, float eye, float slider)
 {
-  const float k = (depthEnabled ? slider : 0.0f) * MAX_DISPARITY * 0.5f / 255.0f;
+  const float k = slider * MAX_DISPARITY * 0.5f / 255.0f;
   for (int y = 0; y < r.dh; y++) {
     int sy = y * r.sh / r.dh;
     const u16 *srow = n3ds_st_buffer + (r.sy + sy) * ST_W + r.sx;
@@ -134,12 +291,41 @@ static void blitViewportStereo(u16 *fb, const Region &r, float eye, float slider
   }
 }
 
+// Party vitals in the top screen's side margins: champions 1-2 on the left, 3-4 on
+// the right; three vertical bars each (health, stamina, mana) in the champion's colour,
+// health bar background turns red below a quarter.
+static void drawVitals(u16 *fb)
+{
+  int n = n3ds_engine_party_size();
+  const u16 back = rgb565(40, 40, 40), danger = rgb565(140, 0, 0);
+  for (int i = 0; i < n && i < 4; i++) {
+    int stats[6];
+    n3ds_engine_champion_stats(i, stats);   // hp, maxHp, stamina, maxStamina, mana, maxMana
+    int x0 = (i < 2) ? 4 : TOP_W - 28;
+    int y0 = (i % 2) * 120 + 6;
+    const int barH = 104;
+    fillRect(fb, TOP_W, x0, y0, 24, 4, CHAMP_COLOR[i]);              // colour tab = party slot
+    for (int b = 0; b < 3; b++) {
+      int cur = stats[b * 2], max = stats[b * 2 + 1];
+      int bx = x0 + b * 9, by = y0 + 8;
+      bool low = (b == 0 && max > 0 && cur * 4 < max && cur > 0);
+      fillRect(fb, TOP_W, bx, by, 6, barH, low ? danger : back);
+      if (max > 0 && cur > 0) {
+        int h = cur >= max ? barH : cur * barH / max;
+        if (h < 1) h = 1;
+        fillRect(fb, TOP_W, bx, by + barH - h, 6, h, CHAMP_COLOR[i]);
+      }
+    }
+  }
+}
+
 static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
 {
   memset(fb, 0, TOP_W * TOP_H * 2);
   if (layout == LAYOUT_DUNGEON) {
     blitViewportStereo(fb, TOP_DUNGEON_VP, eye, slider);
     blitRegion(fb, TOP_DUNGEON_TXT);
+    drawVitals(fb);
   } else {
     blitRegion(fb, TOP_FULL);
   }
@@ -147,9 +333,31 @@ static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
 
 static const Region *bottomRegions(int *count)
 {
-  if (layout == LAYOUT_DUNGEON) { *count = 3; return BOT_DUNGEON; }
+  if (layout == LAYOUT_DUNGEON)   { *count = 3; return BOT_DUNGEON; }
+  if (layout == LAYOUT_INVENTORY) { *count = 2; return BOT_INVENTORY; }
   *count = 1;
   return BOT_FULL;
+}
+
+static void drawButtons(u16 *fb)
+{
+  const u16 face = rgb565(52, 44, 36), edge = rgb565(150, 130, 100), text = rgb565(230, 220, 190);
+  // RECAST: shows whose spell it replays (colour) and how many runes.
+  fillRect(fb, BOT_W, BTN_RECAST.x, BTN_RECAST.y, BTN_RECAST.w, BTN_RECAST.h, face);
+  frameRect(fb, BOT_W, BTN_RECAST.x, BTN_RECAST.y, BTN_RECAST.w, BTN_RECAST.h, edge);
+  bool haveSpell = lastCaster >= 0 && lastCaster < n3ds_engine_party_size();
+  if (haveSpell) {
+    fillRect(fb, BOT_W, BTN_RECAST.x + 3, BTN_RECAST.y + 3, 8, BTN_RECAST.h - 6, CHAMP_COLOR[lastCaster]);
+    drawText(fb, BOT_W, BTN_RECAST.x + 20, BTN_RECAST.y + 7, "RECAST", text, 2);
+    for (int i = 0; i < 4 && lastSpell[lastCaster][i]; i++)
+      fillRect(fb, BOT_W, BTN_RECAST.x + 20 + i * 12, BTN_RECAST.y + 28, 8, 8, CHAMP_COLOR[lastCaster]);
+  } else {
+    drawText(fb, BOT_W, BTN_RECAST.x + 20, BTN_RECAST.y + 14, "NO SPELL", rgb565(110, 100, 90), 2);
+  }
+  // BAG: the leader's inventory.
+  fillRect(fb, BOT_W, BTN_BAG.x, BTN_BAG.y, BTN_BAG.w, BTN_BAG.h, face);
+  frameRect(fb, BOT_W, BTN_BAG.x, BTN_BAG.y, BTN_BAG.w, BTN_BAG.h, edge);
+  drawText(fb, BOT_W, BTN_BAG.x + 20, BTN_BAG.y + 14, "BAG", text, 2);
 }
 
 static void drawBottom(u16 *fb)
@@ -158,7 +366,11 @@ static void drawBottom(u16 *fb)
   int n;
   const Region *regs = bottomRegions(&n);
   for (int i = 0; i < n; i++) blitRegion(fb, regs[i]);
-  if (layout == LAYOUT_DUNGEON) frameRegion(fb, BOT_DUNGEON[2], 0x632C);  // grey frame round mini view
+  if (layout == LAYOUT_DUNGEON) {
+    const Region &mv = BOT_DUNGEON[2];
+    frameRect(fb, BOT_W, mv.dx - 1, mv.dy - 1, mv.dw + 2, mv.dh + 2, rgb565(100, 100, 100));
+    drawButtons(fb);
+  }
   if (dbgEnabled && dbgTX >= 0) {   // debug: magenta crosshair where the last tap landed
     for (int d = -4; d <= 4; d++) {
       if (dbgTX + d >= 0 && dbgTX + d < BOT_W) putpx(fb, dbgTX + d, dbgTY, 0xF81F);
@@ -201,6 +413,7 @@ static void setupScreens(void)
 // frame of an animation always reaches the screen; n3ds_poll() flushes it.
 static bool presentPending = false;
 static float lastSlider = -1.0f;
+static unsigned lastVitalsHash = 0;
 
 static void flushPresent(bool force)
 {
@@ -226,55 +439,71 @@ void n3ds_present(void)
   flushPresent(false);
 }
 
+// Party stats change without the engine redrawing the viewport (e.g. stamina
+// regenerating), so redraw when they change.
+static unsigned vitalsHash(void)
+{
+  unsigned h = (unsigned)n3ds_engine_party_size() * 2654435761u;
+  for (int i = 0; i < n3ds_engine_party_size() && i < 4; i++) {
+    int s[6];
+    n3ds_engine_champion_stats(i, s);
+    for (int k = 0; k < 6; k++) h = h * 31u + (unsigned)s[k];
+  }
+  return h;
+}
+
 // ---------------------------------------------------------------------------
 // Input
 // ---------------------------------------------------------------------------
-// Scancodes match the [keys] section of the shipped csb.cfg (SDL2 scancodes).
-struct KeyMap { u32 button; int sym; int scan; bool repeat; };
-static const KeyMap keyMap[] = {
-  { KEY_DUP    | KEY_CPAD_UP,    0x40000060, 0x60, true  },  // keypad 8: forward
-  { KEY_DDOWN  | KEY_CPAD_DOWN,  0x4000005d, 0x5d, true  },  // keypad 5: back
-  { KEY_DLEFT  | KEY_CPAD_LEFT,  0x4000005f, 0x5f, true  },  // keypad 7: turn left
-  { KEY_DRIGHT | KEY_CPAD_RIGHT, 0x40000061, 0x61, true  },  // keypad 9: turn right
-  { KEY_L,                       0x4000005c, 0x5c, true  },  // keypad 4: strafe left
-  { KEY_R,                       0x4000005e, 0x5e, true  },  // keypad 6: strafe right
-  { KEY_A,                       'q',        0x14, false },  // champion 1 attack
-  { KEY_B,                       'w',        0x1a, false },  // champion 2 attack
-  { KEY_X,                       'e',        0x08, false },  // champion 3 attack
-  { KEY_Y,                       'r',        0x15, false },  // champion 4 attack
-  { KEY_START,                   0x1b,       0x29, false },  // Esc: freeze game
+// Movement: D-pad/Circle Pad up/down = step, left/right = turn, L/R = strafe
+// (Etrian Odyssey / Legend of Grimrock conventions). Keys repeat while held.
+struct KeyMap { u32 button; int sym; int scan; };
+static const KeyMap moveMap[] = {
+  { KEY_DUP    | KEY_CPAD_UP,    0x40000060, 0x60 },  // keypad 8: forward
+  { KEY_DDOWN  | KEY_CPAD_DOWN,  0x4000005d, 0x5d },  // keypad 5: back
+  { KEY_DLEFT  | KEY_CPAD_LEFT,  0x4000005f, 0x5f },  // keypad 7: turn left
+  { KEY_DRIGHT | KEY_CPAD_RIGHT, 0x40000061, 0x61 },  // keypad 9: turn right
+  { KEY_L,                       0x4000005c, 0x5c },  // keypad 4: strafe left
+  { KEY_R,                       0x4000005e, 0x5e },  // keypad 6: strafe right
 };
+static const u32 FACE_BUTTON[4] = { KEY_A, KEY_B, KEY_X, KEY_Y };   // champions 1..4
 static const u64 REPEAT_DELAY = SYSCLOCK_ARM11 / 4;   // 250 ms
 static const u64 REPEAT_RATE  = SYSCLOCK_ARM11 / 6;   // ~170 ms between repeated steps
-
-static bool touching = false, touchRight = false;
-static int lastSTX = 0, lastSTY = 0;
 
 static void handleTouch(u32 held)
 {
   if (held & KEY_TOUCH) {
     touchPosition t;
     hidTouchRead(&t);
-    int x, y;
-    bool inside = touchToST(t.px, t.py, &x, &y);
     if (!touching) {
-      if (!inside) return;                        // tap in a gap: ignore until released
       touching = true;
-      touchRight = (held & KEY_ZR) != 0;          // ZR + tap = right mouse button
       dbgTX = t.px; dbgTY = t.py; presentPending = true;
+      touchOnButton = false;
+      if (layout == LAYOUT_DUNGEON) {   // 3DS-only shortcut buttons fire on press
+        if (inRect(BTN_RECAST, t.px, t.py)) { touchOnButton = true; recastLastSpell(); return; }
+        if (inRect(BTN_BAG, t.px, t.py))    { touchOnButton = true; toggleLeaderInventory(); return; }
+      }
+      int x, y;
+      if (!touchToST(t.px, t.py, &x, &y)) { touchOnButton = true; return; }   // gap: swallow this touch
+      touchRight = (held & KEY_ZR) != 0;          // ZR + tap = right mouse button
       DBG("[n3ds] touch DOWN px=(%d,%d) st=(%d,%d) layout=%d right=%d\n",
           t.px, t.py, x, y, (int)layout, touchRight);
       n3ds_send_mouse_move(x, y);
       n3ds_send_mouse_button(touchRight, true, x, y);
       lastSTX = x; lastSTY = y;
-    } else if (inside && (x != lastSTX || y != lastSTY)) {
-      n3ds_send_mouse_move(x, y);                 // drag
-      lastSTX = x; lastSTY = y;
+    } else if (!touchOnButton) {
+      int x, y;
+      if (touchToST(t.px, t.py, &x, &y) && (x != lastSTX || y != lastSTY)) {
+        n3ds_send_mouse_move(x, y);               // drag
+        lastSTX = x; lastSTY = y;
+      }
     }
   } else if (touching) {
     touching = false;
-    DBG("[n3ds] touch UP st=(%d,%d)\n", lastSTX, lastSTY);
-    n3ds_send_mouse_button(touchRight, false, lastSTX, lastSTY);
+    if (!touchOnButton) {
+      DBG("[n3ds] touch UP st=(%d,%d)\n", lastSTX, lastSTY);
+      n3ds_send_mouse_button(touchRight, false, lastSTX, lastSTY);
+    }
   }
 }
 
@@ -296,7 +525,9 @@ bool n3ds_poll(void)
   // Pick the layout from the engine's state. Never switch in the middle of a tap,
   // so a press and its release are always mapped through the same regions.
   if (!touching) {
-    Layout want = n3ds_engine_in_dungeon_view() ? LAYOUT_DUNGEON : LAYOUT_FULL;
+    Layout want = LAYOUT_FULL;
+    if (n3ds_engine_in_dungeon_view()) want = LAYOUT_DUNGEON;
+    else if (n3ds_engine_inventory_open() && !n3ds_engine_candidate_shown()) want = LAYOUT_INVENTORY;
     if (want != layout) {
       DBG("[n3ds] layout %d -> %d\n", (int)layout, (int)want);
       layout = want;
@@ -310,22 +541,39 @@ bool n3ds_poll(void)
       return false;
     return true;
   }
-  if ((down & KEY_SELECT) && !(held & KEY_START)) { depthEnabled = !depthEnabled; presentPending = true; }
+  if ((down & KEY_START) && !(held & KEY_SELECT)) n3ds_send_key(0x1b, 0x29);      // Esc: freeze
+  // These shortcuts replay clicks at fixed game-screen spots, so they only run where
+  // those spots mean what we expect: the dungeon view (and the inventory for SELECT).
+  if ((down & KEY_SELECT) && !(held & KEY_START) && layout != LAYOUT_FULL)
+    toggleLeaderInventory();                                                      // SELECT: bag
+  // Champion attacks: A/B/X/Y = champion 1/2/3/4, one press per attack.
+  // Plain = first attack, with ZL = second, with ZR = third (the attack menu's three rows).
+  if (layout == LAYOUT_DUNGEON)
+    for (int c = 0; c < 4; c++)
+      if (down & FACE_BUTTON[c]) quickAttack(c, (held & KEY_ZL) ? 1 : (held & KEY_ZR) ? 2 : 0);
 
-  static u64 nextRepeat[sizeof(keyMap) / sizeof(keyMap[0])];
+  static u64 nextRepeat[sizeof(moveMap) / sizeof(moveMap[0])];
   u64 now = svcGetSystemTick();
-  for (size_t i = 0; i < sizeof(keyMap) / sizeof(keyMap[0]); i++) {
-    const KeyMap &k = keyMap[i];
-    if (k.button == KEY_START && (held & KEY_SELECT)) continue;
+  for (size_t i = 0; i < sizeof(moveMap) / sizeof(moveMap[0]); i++) {
+    const KeyMap &k = moveMap[i];
     if (down & k.button) {
       n3ds_send_key(k.sym, k.scan);
       nextRepeat[i] = now + REPEAT_DELAY;
-    } else if (k.repeat && (held & k.button) && now >= nextRepeat[i]) {
+    } else if ((held & k.button) && now >= nextRepeat[i]) {
       n3ds_send_key(k.sym, k.scan);
       nextRepeat[i] = now + REPEAT_RATE;
     }
   }
   handleTouch(held);
+  runActions();
+
+  if (layout == LAYOUT_DUNGEON) {   // vitals and the RECAST button change without engine redraws
+    static int lastShownCaster = -2;
+    unsigned h = vitalsHash();
+    if (h != lastVitalsHash || lastShownCaster != lastCaster) {
+      lastVitalsHash = h; lastShownCaster = lastCaster; presentPending = true;
+    }
+  }
   if (osGet3DSliderState() != lastSlider) presentPending = true;
   if (presentPending) flushPresent(false);
   return true;

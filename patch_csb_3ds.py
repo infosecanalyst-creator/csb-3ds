@@ -137,6 +137,19 @@ bool n3ds_engine_in_dungeon_view(void)
       && d.SecondaryButtonList == &d.Buttons17304[0]
       && d.SelectedCharacterOrdinal == 0;
 }
+
+// Read-only engine state used by the 3DS layouts and shortcuts.
+bool n3ds_engine_inventory_open(void)  { return d.SelectedCharacterOrdinal != 0; }
+bool n3ds_engine_candidate_shown(void) { return d.PotentialCharacterOrdinal != 0; } // Hall of Champions mirror
+int  n3ds_engine_party_size(void)      { return d.NumCharacter < 0 ? 0 : (d.NumCharacter > 4 ? 4 : d.NumCharacter); }
+int  n3ds_engine_attack_menu_owner(void) { return d.AttackingCharacterOrdinal; }
+void n3ds_engine_champion_stats(int i, int out[6])
+{
+  CHARDESC &c = d.hero[i];
+  out[0] = c.HP();      out[1] = c.MaxHP();
+  out[2] = c.Stamina(); out[3] = c.MaxStamina();
+  out[4] = c.Mana();    out[5] = c.MaxMana();
+}
 #endif // __3DS__
 '''
     return t
@@ -238,6 +251,16 @@ CLICKMAP_DEF = ("struct CLICKMAP\n{\n  i8   b0;\n  i8   b1;\n  T12  *pt12_2;\n"
                 "  pnt  *pPnt6;\n  pnt  p10;\n};\n")
 
 
+def patch_magic(t):
+    # RECAST: hand each cast incantation to the 3DS layer before the engine clears it.
+    t = edit(t, "Magic include", '#include "stdafx.h"\n',
+             '#include "stdafx.h"\n#ifdef __3DS__\n#include "n3ds_platform.h"\n#endif\n')
+    return edit(t, "Magic spell hook",
+                "  FillSpellParameters(d.MagicCaster, spellParameters);\n",
+                "  FillSpellParameters(d.MagicCaster, spellParameters);\n"
+                "#ifdef __3DS__\n  n3ds_note_spell(d.MagicCaster, pcA3->incantation);\n#endif\n")
+
+
 def patch_hint(t):
     for name, d in (("S20", S20_DEF), ("TEXT", TEXT_DEF), ("CLICKMAP", CLICKMAP_DEF)):
         t = edit(t, f"Hint {name} alignment", d, PACK_OPEN + d + PACK_CLOSE)
@@ -248,6 +271,7 @@ PATCHES = {
     "CSBTypes.h": patch_csbtypes,
     "Chaos.cpp": patch_chaos,
     "Hint.cpp": patch_hint,
+    "Magic.cpp": patch_magic,
     "CSBlinux.cpp": patch_csblinux,
     "LinCSBUI.cpp": patch_lincsbui,
     "SoundMixer.cpp": patch_soundmixer,
