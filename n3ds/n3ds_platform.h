@@ -45,6 +45,7 @@ int  n3ds_engine_party_size(void);
 int  n3ds_engine_attack_menu_owner(void); // 0 = none, else champion ordinal (1..4)
 bool n3ds_engine_cursor_is_arrow(void);    // false while an item is held (cursor shows it)
 void n3ds_engine_champion_stats(int i, int out[6]);   // hp,maxHp,stamina,maxSta,mana,maxMana
+bool n3ds_engine_button_bounds(int *x0, int *y0, int *x1, int *y1);   // ST coords, inclusive
 
 // Called from the patched Magic.cpp each time a spell is cast (RECAST button).
 void n3ds_note_spell(int caster, const signed char *incantation);

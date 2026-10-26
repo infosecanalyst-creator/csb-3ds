@@ -24,7 +24,11 @@ inventory at 1.4x so the slots are finger-sized.
 | Screen | What it shows |
 |---|---|
 | **Top** | The whole game screen at 1.2x, centred. |
-| **Bottom** | The whole game screen at 1:1, so every tap lands exactly where a mouse click would on the Atari ST, and the inventory is full size. |
+| **Bottom** | Zoomed in on that screen's buttons (2x or 1.5x when they fit) so they are big enough for a finger; otherwise the whole screen at 1:1. Hold **ZL** to see the whole screen at 1:1. |
+
+**Before anyone joins the party**, the bottom screen shows the dungeon view at 1:1
+and the movement arrows at 2x, because the portrait row, spell runes and attack
+menu are still empty.
 
 ## Controls
 
@@ -39,6 +43,7 @@ inventory at 1.4x so the slots are finger-sized.
 | **SELECT** or **BAG** button | Open / close the leader's inventory |
 | Tap | Left click on whatever is under your finger |
 | **ZR** held + tap | Right click |
+| **ZL** (menus) | Show the whole bottom screen at 1:1 instead of the zoomed buttons |
 | **START** | Freeze game |
 | **START + SELECT** | Quit (asks first) |
 | 3D slider | Stereo depth (slide down to turn it off) |

@@ -37,6 +37,10 @@ saving, sleeping or recruiting champions.
 | 12 | Quit | START+SELECT asks first | unchanged | |
 | 13 | Sustained melee | press again every time the weapon recovers | **hold** A/B/X/Y: the attack is re-issued every 0.6 s and lands as soon as the weapon is ready | Auto-attack in modern action RPGs |
 | 14 | Cursor after a tap in the mini view | arrow stays in the big view on top | plain arrow parks in the empty end of the portrait strip (bottom only); a held item still follows your finger | |
+| 16 | Menu, entrance, mirror and freeze buttons | 1:1 (about 3 mm tall) | bottom screen zooms to the buttons the game is listening for, 2x or 1.5x | Finger-or-stylus convention; Nintendo's ~1 cm touch targets |
+| 17 | Dungeon with no party yet | mostly empty bottom screen | dungeon view 1:1 and arrows 2x until the first champion joins | Use the space you have |
+| 18 | First dungeon load | about a minute on hardware (one SD access per tiny read) | data files read in one go and served from memory | |
+| 19 | Top screen while walking | flickered (frames drawn into the buffer on screen) | presents wait for the display's refresh | |
 | 15 | Frame cost | divisions and float math per pixel | lookup tables; same pixels, about 3.3x faster to draw | |
 
 Typical fight, four champions, two rounds:
@@ -73,6 +77,6 @@ Healing loop (caster re-casts a 3-rune heal): **before** 5 taps; **after** 1.
    rune row can be laid out at 2x in the RECAST/BAG area.
 2. Whether RECAST should remember a spell per champion (four small buttons) instead
    of only the most recent one.
-3. Champion mirror (resurrect / reincarnate) and the save menu use the full-screen
-   layout at 1:1; check they are comfortable with a finger.
+3. Champion mirror (resurrect / reincarnate) and the save menu now zoom to their
+   buttons; check that nothing they need sits outside the zoomed area (ZL shows 1:1).
 4. Stereo depth strength and the vanishing-point values on real hardware.

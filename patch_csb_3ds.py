@@ -144,6 +144,27 @@ bool n3ds_engine_candidate_shown(void) { return d.PotentialCharacterOrdinal != 0
 int  n3ds_engine_party_size(void)      { return d.NumCharacter < 0 ? 0 : (d.NumCharacter > 4 ? 4 : d.NumCharacter); }
 int  n3ds_engine_attack_menu_owner(void) { return d.AttackingCharacterOrdinal; }
 bool n3ds_engine_cursor_is_arrow(void)  { return d.CursorShape == 0; }
+// Bounding box of every clickable button the engine is currently hit-testing
+// (menus, entrance, mirror, freeze...). Used to zoom the bottom screen so those
+// buttons are finger-sized. Returns false when there are no buttons.
+bool n3ds_engine_button_bounds(int *x0, int *y0, int *x1, int *y1)
+{
+  int ax = 9999, ay = 9999, bx = -1, by = -1;
+  btn *lists[2] = { d.PrimaryButtonList, d.SecondaryButtonList };
+  for (int l = 0; l < 2; l++) {
+    btn *b = lists[l];
+    for (int k = 0; b && k < 64 && b[k].word0 != 0; k++) {
+      if (b[k].xMax < b[k].xMin || b[k].yMax < b[k].yMin) continue;
+      if (b[k].xMin < ax) ax = b[k].xMin;
+      if (b[k].yMin < ay) ay = b[k].yMin;
+      if (b[k].xMax > bx) bx = b[k].xMax;
+      if (b[k].yMax > by) by = b[k].yMax;
+    }
+  }
+  if (bx < 0) return false;
+  *x0 = ax; *y0 = ay; *x1 = bx; *y1 = by;
+  return true;
+}
 void n3ds_engine_champion_stats(int i, int out[6])
 {
   CHARDESC &c = d.hero[i];
@@ -262,6 +283,17 @@ def patch_magic(t):
                 "#ifdef __3DS__\n  n3ds_note_spell(d.MagicCaster, pcA3->incantation);\n#endif\n")
 
 
+def patch_csbui(t):
+    # Slow loading on hardware: the engine reads its data in small pieces and calls
+    # fseek(0, SEEK_CUR) before every read, which throws away stdio's buffer, so each
+    # read became a separate SD card access. Read-only files are served from RAM.
+    return edit(t, "CSBUI fopen",
+                "FILE *UI_fopen(const char *name, const char *flags)\n{\n  return fopen(name, flags);",
+                "#ifdef __3DS__\nFILE *n3ds_fopen(const char *name, const char *flags);\n#endif\n"
+                "FILE *UI_fopen(const char *name, const char *flags)\n{\n"
+                "#ifdef __3DS__\n  return n3ds_fopen(name, flags);\n#endif\n  return fopen(name, flags);")
+
+
 def patch_hint(t):
     for name, d in (("S20", S20_DEF), ("TEXT", TEXT_DEF), ("CLICKMAP", CLICKMAP_DEF)):
         t = edit(t, f"Hint {name} alignment", d, PACK_OPEN + d + PACK_CLOSE)
@@ -276,6 +308,7 @@ PATCHES = {
     "CSBlinux.cpp": patch_csblinux,
     "LinCSBUI.cpp": patch_lincsbui,
     "SoundMixer.cpp": patch_soundmixer,
+    "CSBUI.cpp": patch_csbui,
 }
 
 

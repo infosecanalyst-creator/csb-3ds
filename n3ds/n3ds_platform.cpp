@@ -75,10 +75,17 @@ static const Region BOT_INVENTORY[] = {
   { 0,    0,    ST_W, PORT_H, 0, 0,  320, PORT_H },
   { VP_X, VP_Y, VP_W, VP_H,   3, 37, 314, 190    },
 };
-// Everything else: the whole screen at 1:1 (exact mouse mapping).
-static const Region BOT_FULL[] = {
-  { 0, 0, ST_W, ST_H, 0, (BOT_H - ST_H) / 2, ST_W, ST_H },
+// Dungeon before anyone has joined the party (the portrait row, runes and attack
+// menu are all empty): the dungeon view at 1:1 and the movement arrows at 2x.
+static const Region BOT_DUNGEON_EMPTY[] = {
+  { VP_X, VP_Y, VP_W, VP_H, (BOT_W - 224) / 2, 4,   224, 136 },  // viewport 1:1
+  { 232,  122,  88,   47,   (BOT_W - 176) / 2, 146, 176, 94  },  // movement arrows 2x
 };
+static bool partyEmpty = false;   // chosen with the layout, never mid-tap
+// Everything else: the whole screen at 1:1 (exact mouse mapping), or zoomed in
+// on the screen's buttons so they are finger-sized (see updateFullZoom()).
+static const Region BOT_FULL_1X = { 0, 0, ST_W, ST_H, 0, (BOT_H - ST_H) / 2, ST_W, ST_H };
+static Region BOT_FULL[1] = { BOT_FULL_1X };
 
 enum Layout { LAYOUT_FULL = 0, LAYOUT_DUNGEON = 1, LAYOUT_INVENTORY = 2 };
 static Layout layout = LAYOUT_FULL;
@@ -368,6 +375,7 @@ static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
 
 static const Region *bottomRegions(int *count)
 {
+  if (layout == LAYOUT_DUNGEON && partyEmpty) { *count = 2; return BOT_DUNGEON_EMPTY; }
   if (layout == LAYOUT_DUNGEON)   { *count = 3; return BOT_DUNGEON; }
   if (layout == LAYOUT_INVENTORY) { *count = 2; return BOT_INVENTORY; }
   *count = 1;
@@ -402,9 +410,9 @@ static void drawBottom(u16 *fb)
   const Region *regs = bottomRegions(&n);
   for (int i = 0; i < n; i++) blitRegion(fb, regs[i]);
   if (layout == LAYOUT_DUNGEON) {
-    const Region &mv = BOT_DUNGEON[2];
+    const Region &mv = partyEmpty ? BOT_DUNGEON_EMPTY[0] : BOT_DUNGEON[2];
     frameRect(fb, BOT_W, mv.dx - 1, mv.dy - 1, mv.dw + 2, mv.dh + 2, rgb565(100, 100, 100));
-    drawButtons(fb);
+    if (!partyEmpty) drawButtons(fb);
   }
   if (dbgEnabled && dbgTX >= 0) {   // debug: magenta crosshair where the last tap landed
     for (int d = -4; d <= 4; d++) {
@@ -466,12 +474,49 @@ static void flushPresent(bool force)
   drawBottom((u16 *)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL));
   gfxFlushBuffers();
   gfxSwapBuffers();
+  // Wait for the swap to take effect. Without this, two presents inside one
+  // display frame meant the next frame was drawn into the buffer still being
+  // shown, which flickered and tore while walking.
+  gspWaitForVBlank();
 }
 
 void n3ds_present(void)
 {
   presentPending = true;
   flushPresent(false);
+}
+
+// Menus, the entrance, the champion mirror, freeze, game over: zoom the bottom
+// screen in on the buttons the engine is hit-testing, at 2x or 1.5x when they fit,
+// so they are finger-sized (Nintendo's guidance is about 1 cm). The whole screen
+// stays on the top screen. Hold ZL to see the bottom at 1:1.
+static void updateFullZoom(bool forceOneToOne)
+{
+  Region r = BOT_FULL_1X;
+  int x0, y0, x1, y1;
+  if (!forceOneToOne && n3ds_engine_button_bounds(&x0, &y0, &x1, &y1)) {
+    const int M = 8;   // margin around the buttons
+    x0 = x0 - M < 0 ? 0 : x0 - M;            y0 = y0 - M < 0 ? 0 : y0 - M;
+    x1 = x1 + M > ST_W - 1 ? ST_W - 1 : x1 + M; y1 = y1 + M > ST_H - 1 ? ST_H - 1 : y1 + M;
+    int bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    int sw = 0, sh = 0;
+    if (bw <= 160 && bh <= 120)      { sw = 160; sh = 120; }   // 2x
+    else if (bw <= 213 && bh <= 160) { sw = 213; sh = 160; }   // 1.5x
+    if (sw) {
+      int sx = (x0 + x1 + 1) / 2 - sw / 2, sy = (y0 + y1 + 1) / 2 - sh / 2;
+      if (sx < 0) sx = 0;
+      if (sx > ST_W - sw) sx = ST_W - sw;
+      if (sy < 0) sy = 0;
+      if (sy > ST_H - sh) sy = ST_H - sh;
+      Region z = { sx, sy, sw, sh, 0, 0, BOT_W, BOT_H };
+      r = z;
+    }
+  }
+  if (memcmp(&r, &BOT_FULL[0], sizeof r) != 0) {
+    DBG("[n3ds] full zoom src=(%d,%d %dx%d)\n", r.sx, r.sy, r.sw, r.sh);
+    BOT_FULL[0] = r;
+    presentPending = true;
+  }
 }
 
 // Party stats change without the engine redrawing the viewport (e.g. stamina
@@ -514,7 +559,7 @@ static void handleTouch(u32 held)
       touching = true;
       dbgTX = t.px; dbgTY = t.py; presentPending = true;
       touchOnButton = false;
-      if (layout == LAYOUT_DUNGEON) {   // 3DS-only shortcut buttons fire on press
+      if (layout == LAYOUT_DUNGEON && !partyEmpty) {   // 3DS-only shortcut buttons fire on press
         if (inRect(BTN_RECAST, t.px, t.py)) { touchOnButton = true; recastLastSpell(); return; }
         if (inRect(BTN_BAG, t.px, t.py))    { touchOnButton = true; toggleLeaderInventory(); return; }
       }
@@ -573,6 +618,9 @@ bool n3ds_poll(void)
       layout = want;
       presentPending = true;
     }
+    bool empty = n3ds_engine_party_size() == 0;
+    if (empty != partyEmpty) { partyEmpty = empty; presentPending = true; }
+    if (layout == LAYOUT_FULL) updateFullZoom((held & KEY_ZL) != 0);
   }
 
   if ((held & KEY_START) && (held & KEY_SELECT)) {
@@ -659,6 +707,44 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
   n3ds_force_redraw();
   presentPending = true;
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// File access
+// ---------------------------------------------------------------------------
+// The engine reads its data a few bytes at a time and calls fseek(0, SEEK_CUR)
+// before every read, which discards stdio's buffer; on the SD card each of those
+// became a separate slow access and the first dungeon load took about a minute.
+// Read-only files are read in one go and served from memory instead.
+extern "C" FILE *fmemopen(void *buf, size_t size, const char *mode);
+FILE *n3ds_fopen(const char *name, const char *flags)
+{
+  bool readOnly = flags[0] == 'r' && !strchr(flags, '+');
+  if (!readOnly) return fopen(name, flags);
+  FILE *f = fopen(name, "rb");
+  if (!f) return NULL;
+  if (fseek(f, 0, SEEK_END) != 0) { rewind(f); return f; }
+  long size = ftell(f);
+  rewind(f);
+  if (size <= 0 || size > 16 * 1024 * 1024) return f;   // empty or huge: plain file
+  // The memory stream owns its buffer (freed by fclose). One spare byte keeps
+  // newlib from overwriting the last data byte with its terminating NUL.
+  FILE *m = fmemopen(NULL, (size_t)size + 1, "w+b");
+  if (!m) return f;
+  static unsigned char chunk[64 * 1024];
+  size_t total = 0, n;
+  while ((n = fread(chunk, 1, sizeof chunk, f)) > 0) {
+    if (fwrite(chunk, 1, n, m) != n) break;
+    total += n;
+  }
+  fclose(f);
+  if (total != (size_t)size) {   // short read: fall back to the file itself
+    fclose(m);
+    return fopen(name, flags);
+  }
+  rewind(m);
+  DBG("[n3ds] %s loaded into memory (%ld bytes)\n", name, size);
+  return m;
 }
 
 // ---------------------------------------------------------------------------
