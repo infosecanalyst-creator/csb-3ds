@@ -1,0 +1,149 @@
+# Welcome
+Dungeon Master for the New 3DS plays the original Dungeon Master and Chaos Strikes Back with CSBwin, a faithful remake of the original engine.
+
+You lead up to four champions through a real-time dungeon. Monsters move while you think, food and water run down, and torches burn out. The game never pauses unless you freeze it (START) or open this manual.
+
+## Reading this manual
+- Tap a section on the touch screen to open it.
+- Circle Pad or D-pad up and down: scroll.
+- L and R: previous and next section.
+- B or START: close. The manual opens again where you left it.
+- Open it from the HELP tab in the dungeon, or with SELECT on any menu screen.
+
+# Getting started
+## Installing over Wi-Fi
+1. On the 3DS, open the Homebrew Launcher and start ftpd.
+2. Upload csb3ds.3dsx and csb.cfg to sdmc:/3ds/csb3ds/.
+3. Close ftpd and start Dungeon Master from the Homebrew Launcher.
+
+Updates install the same way. You never need to take the SD card out.
+
+## Game files
+The game needs GRAPHICS.DAT and DUNGEON.DAT from Dungeon Master (or Chaos Strikes Back) in sdmc:/3ds/csb3ds/. No game data comes with this port.
+
+## Starting
+The first screen is the game's own menu. Tap DUNGEON for a new game, or pick a saved game. At the entrance, tap ENTER.
+
+## Saves
+Save from the disk icon in any champion's inventory. Saves are written to sdmc:/3ds/csb3ds/.
+
+# The two screens
+## Bottom screen: the dungeon
+The touch screen is where you play. Use the stylus like a mouse; a finger works too.
+- Across the top: each champion's portrait, both hands and three bars. Tap a portrait to open that champion's inventory. Tap a hand to take or place the item in it.
+- The dungeon view: tap to pick items up off the floor, push wall buttons, open doors and put things in alcoves.
+- With an item in hand, tap the upper half of the view to throw it.
+
+## The tabs
+| FIGHT | Attack menu. Tap a weapon, then an attack.
+| SPELL | Rune panel for casting.
+| RECAST | Casts the last spell again.
+| BAG | The leader's inventory.
+| SWAP | Moves the big view to the top screen.
+| HELP | This manual.
+
+## Top screen: information
+- Party: each champion's HP, STA and MP with current/max, FOOD and WATER, and POISON or DEAD.
+- Map: every square you have seen.
+- LIGHT: how bright your torches and spells keep the dungeon.
+- Messages: the last lines the game printed.
+
+## SWAP
+SWAP puts the dungeon view full-size on the top screen, with 3D depth from the 3D slider, and moves the map to the bottom. Tap SWAP again to go back. The game remembers your choice.
+
+# Controls
+| D-pad | Step forward or back, turn left or right
+| Circle Pad | Same as the D-pad
+| L / R | Step sideways
+| A B X Y | Champion 1 2 3 4 attacks (hold to keep attacking)
+| ZL + A B X Y | That champion's second attack
+| ZR + A B X Y | That champion's third attack
+| ZR + tap | Right click
+| SELECT | Inventory in the dungeon; manual on menus
+| START | Freeze or unfreeze the game
+| START + SELECT | Quit (asks first)
+| 3D slider | Depth for the top-screen view and map
+
+The A B X Y attacks and SELECT inventory only work in the dungeon, so they can never press a menu button by accident.
+
+# Champions
+The Hall of Champions, just inside the entrance, has mirrors. Tap a mirror to see the champion inside.
+- RESURRECT brings them back as they were, with their name and skills.
+- REINCARNATE gives them a new name. They lose their skill levels but gain extra strength and other stats in return.
+- CANCEL leaves them in the mirror.
+
+You can carry four champions. Their colour (green, yellow, red, blue) is the same on the portraits, the bars and the messages.
+
+## The leader
+The leader carries what is in your hand and leads the party. Tap a champion's name on their portrait to make them the leader.
+
+# Fighting
+Monsters attack from the front, and sometimes the sides. Only the two champions at the front can hit with most weapons. The two at the back can throw things, fire bows or cast spells.
+
+## Attacking
+- Press A, B, X or Y. That champion uses their first attack.
+- Hold the button to keep attacking whenever their weapon is ready.
+- For a different attack, hold ZL (second) or ZR (third) with the button, or tap FIGHT, tap the weapon and choose.
+
+After an attack, the weapon is greyed out until the champion recovers.
+
+## Damage
+Hits show on the portraits. If HP turns red, back off, heal or drink a potion. A dead champion's bones can be carried back to a resurrection altar.
+
+# Spells
+Tap SPELL to open the rune panel. Spells are a row of runes:
+1. A power rune (first row): LO, UM, ON, EE, PAL or MON. More power costs more mana.
+2. Up to three more runes for the element, form and class of the spell.
+3. Tap the arrow at the bottom right to cast.
+
+Tap a champion's name tab at the top of the panel to choose who casts.
+
+## Some first spells
+| FUL | Magic torch (light)
+| OH IR RA | Longer-lasting light
+| FUL IR | Fireball
+| VI | Healing potion (hold an empty flask)
+| YA | Stamina potion (hold an empty flask)
+| ZO | Opens some doors
+
+RECAST repeats the last spell, with the same caster and runes, in one tap.
+
+# Inventory
+Tap a portrait, the BAG tab or SELECT to open the inventory. The dungeon view is replaced by that champion's equipment and backpack, at a larger size for fingers. The top screen keeps showing the map and the party.
+- Tap an item to pick it up, then tap a slot to put it down.
+- Eat and drink: hold the food or water flask and tap the mouth icon.
+- The eye icon shows details of the item you hold.
+- The disk icon saves the game. ZZZ puts the party to sleep to recover.
+- SELECT, BAG or the portrait again closes the inventory.
+
+# The map
+The map on the top screen draws every square you have seen. North is always up.
+- Solid lines are walls. Dotted lines are open edges you can walk across.
+- The white arrow with the red tip is the party, pointing the way you face.
+- Orange bars are doors, stripes are stairs and dark squares are pits.
+- The level number is top left, your facing top right.
+
+The map starts empty each time you start the game.
+
+# Survival
+- Food and water: watch the FOOD and WATER bars. They turn yellow, then red. Eat and drink before they run out.
+- Light: torches burn down. When LIGHT drops, light a new torch or cast FUL.
+- Rest: sleep (ZZZ in the inventory) to recover HP, stamina and mana. Monsters can still find you.
+- Save often. The dungeon does not forgive.
+- Freeze with START any time you need to stop.
+
+# Troubleshooting
+## There is no sound
+Homebrew needs a copy of the 3DS sound firmware. Run DSP1 from the Homebrew Launcher once, then start the game again.
+
+## It says the game data is missing
+Put GRAPHICS.DAT and DUNGEON.DAT in sdmc:/3ds/csb3ds/.
+
+## A tap does nothing
+Some screens zoom in on their buttons. Hold ZL on a menu screen to see the whole screen.
+
+## Debugging
+An empty file named debug.txt in sdmc:/3ds/csb3ds/ writes csb3ds.log there and marks each tap with a crosshair.
+
+## Changing this manual
+A file named manual.txt in sdmc:/3ds/csb3ds/ replaces the built-in text. Sections start with "# ", headings with "## ", list items with "- ", numbered steps with "1. " and table rows with "| ".

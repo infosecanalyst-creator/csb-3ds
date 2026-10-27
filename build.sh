@@ -55,6 +55,8 @@ git -C "$WORK/CSB" clean -qfdx src
 echo "== applying 3DS patch"
 python3 "$HERE/patch_csb_3ds.py" "$WORK/CSB/src"
 cp "$HERE"/n3ds/* "$WORK/CSB/src/"
+# The in-game manual: n3ds/manual.txt compiled in as a C string.
+python3 "$HERE/tools/embed_manual.py" "$HERE/n3ds/manual.txt" "$WORK/CSB/src/n3ds_manual.h"
 cp "$HERE/Makefile.3ds" "$WORK/CSB/src/"
 [ -f "$HERE/icon.png" ] && cp "$HERE/icon.png" "$WORK/CSB/src/"
 

@@ -47,6 +47,7 @@ menu are still empty.
 | **RECAST** tab | Repeat the last spell (shows the caster's colour and rune count) |
 | **SELECT** or **BAG** tab | Open / close the leader's inventory |
 | **SWAP** tab | Dungeon view on the bottom (touch) or on the top (3D) |
+| **HELP** tab, or **SELECT** on menu screens | The instruction manual |
 | Tap | Left click on whatever is under your finger |
 | **ZR** held + tap | Right click |
 | **ZL** (menus) | Show the whole bottom screen at 1:1 instead of the zoomed buttons |
@@ -86,6 +87,17 @@ platform layer and builds with `Makefile.3ds`. Output: `out/csb3ds.3dsx`.
 
 The patch is anchor-checked: if upstream code moves, it stops and names the anchor that
 failed instead of producing a half-patched tree. Every change is behind `#ifdef __3DS__`.
+
+## Instruction manual
+
+The manual is built into the game: the **HELP** tab in the dungeon, or **SELECT** on the
+menus and the entrance. The section text is on the top screen (Circle Pad or D-pad to
+scroll, L / R for the previous or next section); the touch screen has a big button per
+section and Close (B or START also close). The game waits while it is open, and the
+manual reopens where you left it.
+
+Its text is `n3ds/manual.txt`, compiled in by `tools/embed_manual.py`. A `manual.txt` in
+`sdmc:/3ds/csb3ds/` replaces it without a rebuild.
 
 ## Debugging
 
