@@ -499,8 +499,9 @@ static void updateAutomap(void)
 
 static void drawAutomap(u16 *fb, int fbW, const Rect &area, int shift, int arrowShift)
 {
-  const u16 bg = rgb565(10, 10, 14), grid = rgb565(28, 28, 34), floorC = rgb565(118, 116, 108);
-  const u16 wallC = rgb565(64, 50, 38), pitC = rgb565(16, 16, 16), stairC = rgb565(214, 190, 90);
+  const u16 bg = rgb565(10, 10, 14), grid = rgb565(70, 72, 80), floorC = rgb565(118, 116, 108);
+  const u16 wallLine = rgb565(245, 235, 205);
+  const u16 wallC = rgb565(40, 34, 28), pitC = rgb565(16, 16, 16), stairC = rgb565(214, 190, 90);
   const u16 doorC = rgb565(205, 120, 40), partyC = rgb565(255, 255, 255);
   fillRect(fb, fbW, area.x, area.y, area.w, area.h, bg);
   int p[4];
@@ -523,10 +524,28 @@ static void drawAutomap(u16 *fb, int fbW, const Rect &area, int shift, int arrow
         fillRect(fb, fbW, sx, sy, C, C, wallC);
         continue;
       }
-      fillRect(fb, fbW, sx, sy, C, C, grid);
-      fillRect(fb, fbW, sx + 1, sy + 1, C - 1, C - 1, floorC);
-      if (type == ROOM_PIT) fillRect(fb, fbW, sx + 2, sy + 2, C - 3, C - 3, pitC);
-      else if (type == ROOM_STAIRS) for (int k = 1; k < C; k += 2) fillRect(fb, fbW, sx + 1, sy + k, C - 1, 1, stairC);
+      fillRect(fb, fbW, sx, sy, C, C, floorC);
+      // Edges, graph-paper style: solid where a wall is, dotted where the way is open.
+      for (int side = 0; side < 4; side++) {
+        static const int NX[4] = { 0, 1, 0, -1 }, NY[4] = { -1, 0, 1, 0 };   // up right down left
+        int ncf = n3ds_engine_cell(l, mx + NX[side], my + NY[side]);
+        int nt = ncf < 0 ? ROOM_STONE : ncf >> 5;
+        bool wall = nt == ROOM_STONE || nt == ROOM_FALSEWALL;
+        bool horiz = side == 0 || side == 2;
+        int ex = side == 1 ? sx + C - (wall ? 2 : 1) : sx;
+        int ey = side == 2 ? sy + C - (wall ? 2 : 1) : sy;
+        if (wall) {
+          if (horiz) fillRect(fb, fbW, ex, ey, C, 2, wallLine);
+          else fillRect(fb, fbW, ex, ey, 2, C, wallLine);
+        } else if (side == 1 || side == 2) {   // open: one dotted line per shared edge
+          for (int k = 0; k < C; k += 2) {
+            int X = horiz ? ex + k : ex, Y = horiz ? ey : ey + k;
+            if (X >= 0 && X < fbW && Y >= 0 && Y < 240) putpx(fb, X, Y, grid);
+          }
+        }
+      }
+      if (type == ROOM_PIT) fillRect(fb, fbW, sx + 3, sy + 3, C - 6, C - 6, pitC);
+      else if (type == ROOM_STAIRS) for (int k = 2; k < C - 2; k += 2) fillRect(fb, fbW, sx + 2, sy + k, C - 4, 1, stairC);
       else if (type == ROOM_DOOR) {   // a bar across the passage
         int left = n3ds_engine_cell(l, mx - 1, my), right = n3ds_engine_cell(l, mx + 1, my);
         bool nsPassage = (left < 0 || (left >> 5) == ROOM_STONE) && (right < 0 || (right >> 5) == ROOM_STONE);
@@ -536,18 +555,25 @@ static void drawAutomap(u16 *fb, int fbW, const Rect &area, int shift, int arrow
         else fillRect(fb, fbW, sx + C / 2 - 1, sy + 1, 2, C - 1, dc);
       }
     }
-  // The party: an arrow in its square pointing the way it faces.
+  // The party: an arrow filling its square, pointing the way it faces. The tip is
+  // red and the body white with a dark outline, so the direction reads at a glance.
   int fx, fy;
   n3ds_engine_delta(f, &fx, &fy);
   int cx = ox + (px - x0) * C + C / 2 + arrowShift, cy = oy + (py - y0) * C + C / 2;
-  for (int a = -3; a <= 3; a++)            // along the facing
-    for (int b = -3; b <= 3; b++) {        // across it
-      int along = a + 3;                   // 0 at the tail .. 6 at the tip
-      if (abs(b) * 2 > 6 - along) continue;
-      int dx = fx * a - fy * b, dy = fy * a + fx * b;
-      int X = cx + dx, Y = cy + dy;
-      if (X >= area.x && X < area.x + area.w && Y >= area.y && Y < area.y + area.h) putpx(fb, X, Y, partyC);
-    }
+  const u16 tipC = rgb565(255, 50, 30), outline = rgb565(0, 0, 0);
+  for (int pass = 0; pass < 2; pass++)       // 0: outline (one pixel larger), 1: fill
+    for (int a = -6; a <= 6; a++)            // along the facing (+ = forward)
+      for (int b = -6; b <= 6; b++) {        // across it
+        int grow = pass == 0 ? 1 : 0;
+        // A triangle from the tail (a = -3, half-width 4) to the tip (a = +4); front half red.
+        if (a < -3 - grow || a > 4 + grow) continue;
+        int half = (4 - a) * 4 / 7 + grow;
+        if (abs(b) > half) continue;
+        int dx = fx * a - fy * b, dy = fy * a + fx * b;
+        int X = cx + dx, Y = cy + dy;
+        if (X < area.x || X >= area.x + area.w || Y < area.y || Y >= area.y + area.h) continue;
+        putpx(fb, X, Y, pass == 0 ? outline : (a >= 0 ? tipC : partyC));
+      }
   char label[24];
   snprintf(label, sizeof label, "LEVEL %d", l + 1);
   drawText(fb, fbW, area.x + 3, area.y + 3, label, rgb565(220, 210, 180));
@@ -636,7 +662,7 @@ static void drawInfo(u16 *fb, float eye, float slider)
   fillRect(fb, TOP_W, 0, INFO_LOG_Y - 2, TOP_W, 1, rule);
   // 3D: the map sits slightly behind the screen and the party arrow in front of it.
   int shift = (int)floorf(-eye * slider * 2.0f + 0.5f);
-  int arrow = (int)floorf(eye * slider * 3.0f + 0.5f);
+  int arrow = (int)floorf(eye * slider * 1.5f + 0.5f);
   drawAutomap(fb, TOP_W, INFO_MAP, shift, arrow - shift);
   drawCompassAndLight(fb, INFO_MAP);
   drawLog(fb, TOP_W, 4, INFO_LOG_Y, INFO_LOG_LINES, INFO_LOG_H);
