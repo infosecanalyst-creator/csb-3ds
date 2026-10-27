@@ -50,38 +50,38 @@ struct Rect { int x, y, w, h; };
 static inline bool inRect(const Rect &r, int x, int y) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
 
 // --- Top screen -----------------------------------------------------------
-// Dungeon: viewport at 1.5x (336x204) with the message strip underneath, party
-// vitals (health / stamina / mana) in the side margins where the eyes already are.
-static const Region TOP_DUNGEON_VP  = { VP_X, VP_Y, VP_W, VP_H, (TOP_W - 336) / 2, 0, 336, 204 };
-static const Region TOP_DUNGEON_TXT = { 0, TXT_Y, ST_W, TXT_H, (TOP_W - 320) / 2, 207, 320, TXT_H };
+// Dungeon: the viewport fills the whole top screen (1.79x by 1.76x: the viewport's
+// shape is within 2% of the screen's). Messages are drawn over the bottom of it
+// and the party's vitals as slim bars along the left and right edges.
+static const Region TOP_DUNGEON_VP  = { VP_X, VP_Y, VP_W, VP_H, 0, 0, TOP_W, TOP_H };
+static const Region TOP_DUNGEON_TXT = { 0, TXT_Y, ST_W, TXT_H, (TOP_W - 320) / 2, TOP_H - TXT_H - 2, 320, TXT_H };
 // Everything else (title, entrance, menus, inventory): whole screen at 1.2x, centred.
 static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, (TOP_W - 384) / 2, 0, 384, 240 };
 
 // --- Bottom screen --------------------------------------------------------
-// Dungeon: controls only, sized for fingers.
+// Dungeon, view on the bottom (the default): the screen you touch is the dungeon.
 //   champion portraits/hands at 1:1 across the top,
-//   spell runes + attack menu + movement arrows at 1.5x on the right,
-//   a small copy of the viewport on the left for grabbing items, wall buttons, doors,
-//   and two 3DS-only shortcut buttons in the spare space: RECAST and BAG.
-static const Region BOT_DUNGEON[] = {
-  { 0,     0,    ST_W,  PORT_H, 0,   0,  320, PORT_H },        // portraits
-  { CTL_X, VP_Y, CTL_W, VP_H,   176, 35, 144, 204    },        // controls 1.5x
-  { VP_X,  VP_Y, VP_W,  VP_H,   0,   84, 176, 107    },        // mini viewport (0.79x)
-};
-static const Rect BTN_RECAST = { 4, 38, 168, 42 };              // above the mini viewport
-static const Rect BTN_BAG    = { 4, 195, 168, 42 };             // below the mini viewport
+//   the dungeon view at 1.3x under them (tap to grab, push, open, throw),
+//   a row of finger-sized tabs along the bottom: FIGHT SPELL RECAST BAG SWAP.
+// The attack menu and spell runes pop up over the right side of the view at 2x,
+// only while wanted. Movement is on the D-pad / Circle Pad.
+static const Region BOT_PORTRAITS = { 0, 0, ST_W, PORT_H, 0, 0, 320, PORT_H };
+static const Region BOT_VIEW      = { VP_X, VP_Y, VP_W, VP_H, 14, 34, 292, 178 };
+static const Region POP_FIGHT     = { CTL_X, 75,   CTL_W, 48, 128, 34,  192, 90 };   // action icons / attack menu
+static const Region POP_SPELL     = { CTL_X, VP_Y, CTL_W, 42, 128, 126, 192, 84 };   // caster tabs, runes, cast
+enum { TAB_Y = 214, TAB_H = 26, NUM_TABS = 5, TAB_W = BOT_W / NUM_TABS };
+enum { TAB_FIGHT, TAB_SPELL, TAB_RECAST, TAB_BAG, TAB_SWAP };
+static const char *const TAB_LABEL[NUM_TABS] = { "FIGHT", "SPELL", "RECAST", "BAG", "SWAP" };
+static inline Rect tabRect(int i) { Rect r = { i * TAB_W, TAB_Y, TAB_W - 2, TAB_H }; return r; }
+// With SWAP, the big view goes back to the top screen (with 3D depth) and the
+// auto-map takes its place on the bottom.
+static const Rect MAP_ON_BOTTOM = { 0, 34, BOT_W, 178 };
+static bool viewOnBottom = true, showFight = false, showSpell = false;
 // Inventory: portraits 1:1 + the inventory panel at 1.4x, so slots are finger-sized.
 static const Region BOT_INVENTORY[] = {
   { 0,    0,    ST_W, PORT_H, 0, 0,  320, PORT_H },
   { VP_X, VP_Y, VP_W, VP_H,   3, 37, 314, 190    },
 };
-// Dungeon before anyone has joined the party (the portrait row, runes and attack
-// menu are all empty): the dungeon view at 1:1 and the movement arrows at 2x.
-static const Region BOT_DUNGEON_EMPTY[] = {
-  { VP_X, VP_Y, VP_W, VP_H, (BOT_W - 224) / 2, 4,   224, 136 },  // viewport 1:1
-  { 232,  122,  88,   47,   (BOT_W - 176) / 2, 146, 176, 94  },  // movement arrows 2x
-};
-static bool partyEmpty = false;   // chosen with the layout, never mid-tap
 // Everything else: the whole screen at 1:1 (exact mouse mapping), or zoomed in
 // on the screen's buttons so they are finger-sized (see updateFullZoom()).
 static const Region BOT_FULL_1X = { 0, 0, ST_W, ST_H, 0, (BOT_H - ST_H) / 2, ST_W, ST_H };
@@ -89,6 +89,7 @@ static Region BOT_FULL[1] = { BOT_FULL_1X };
 
 enum Layout { LAYOUT_FULL = 0, LAYOUT_DUNGEON = 1, LAYOUT_INVENTORY = 2 };
 static Layout layout = LAYOUT_FULL;
+static bool presentPending = false;   // something on screen changed; draw at the next chance
 
 // Stereoscopic depth -------------------------------------------------------
 // DM's viewport is a one-point perspective: walls at each distance form nested
@@ -149,28 +150,21 @@ static void frameRect(u16 *fb, int w, int x0, int y0, int rw, int rh, u16 c)   /
   fillRect(fb, w, x0 + rw - 1, y0, 1, rh, c);
 }
 
-// Tiny 5x7 font, just the characters the 3DS-only buttons use.
-struct Glyph { char c; unsigned char rows[7]; };
-static const Glyph FONT[] = {
-  {'A',{0x0E,0x11,0x11,0x1F,0x11,0x11,0x11}}, {'B',{0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E}},
-  {'C',{0x0E,0x11,0x10,0x10,0x10,0x11,0x0E}}, {'E',{0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F}},
-  {'G',{0x0E,0x11,0x10,0x17,0x11,0x11,0x0F}}, {'L',{0x10,0x10,0x10,0x10,0x10,0x10,0x1F}},
-  {'N',{0x11,0x19,0x15,0x13,0x11,0x11,0x11}}, {'O',{0x0E,0x11,0x11,0x11,0x11,0x11,0x0E}},
-  {'P',{0x1E,0x11,0x11,0x1E,0x10,0x10,0x10}}, {'R',{0x1E,0x11,0x11,0x1E,0x14,0x12,0x11}},
-  {'S',{0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E}}, {'T',{0x1F,0x04,0x04,0x04,0x04,0x04,0x04}},
-  {'Y',{0x11,0x11,0x0A,0x04,0x04,0x04,0x04}}, {' ',{0,0,0,0,0,0,0}},
-};
-
-static void drawText(u16 *fb, int w, int x, int y, const char *s, u16 c, int scale)
+// Text: libctru's 8x8 console font (256 glyphs, 8 bytes each, top row first,
+// bit 7 = leftmost pixel). Optional integer scale.
+extern "C" const u8 default_font_bin[];
+static int drawText(u16 *fb, int w, int x, int y, const char *s, u16 c, int scale = 1)
 {
-  for (; *s; s++, x += 6 * scale) {
-    const Glyph *g = NULL;
-    for (size_t i = 0; i < sizeof(FONT) / sizeof(FONT[0]); i++) if (FONT[i].c == *s) g = &FONT[i];
-    if (!g) continue;
-    for (int r = 0; r < 7; r++)
-      for (int b = 0; b < 5; b++)
-        if (g->rows[r] & (0x10 >> b)) fillRect(fb, w, x + b * scale, y + r * scale, scale, scale, c);
+  for (; *s; s++, x += 8 * scale) {
+    const u8 *g = default_font_bin + 8 * (unsigned char)*s;
+    for (int r = 0; r < 8; r++)
+      for (int b = 0; b < 8; b++)
+        if (g[r] & (0x80 >> b)) {
+          if (scale == 1) { int px = x + b, py = y + r; if (px >= 0 && px < w && py >= 0 && py < 240) putpx(fb, px, py, c); }
+          else fillRect(fb, w, x + b * scale, y + r * scale, scale, scale, c);
+        }
   }
+  return x;
 }
 
 // ---------------------------------------------------------------------------
@@ -296,7 +290,7 @@ static void toggleLeaderInventory(void) { queueAction(1, 100, 100, 0); }
 // Viewport at 1.5x with per-pixel horizontal disparity from the depth map. The source
 // column for every output pixel only depends on the slider, so it is cached per eye
 // and rebuilt when the slider moves (no float math per frame).
-enum { SV_W = 336, SV_H = 204 };
+enum { SV_W = TOP_W, SV_H = TOP_H };
 static unsigned char stereoCol[2][SV_H][SV_W];
 static float stereoCachedSlider = -1.0f;
 
@@ -333,86 +327,395 @@ static void blitViewportStereo(u16 *fb, const Region &r, float eye, float slider
   }
 }
 
-// Party vitals in the top screen's side margins: champions 1-2 on the left, 3-4 on
-// the right; three vertical bars each (health, stamina, mana) in the champion's colour,
-// health bar background turns red below a quarter.
+// Party vitals over the edges of the view: champions 1-2 down the left edge, 3-4 down
+// the right; three slim vertical bars each (health, stamina, mana) in the champion's
+// colour on a dark backing; the health bar's backing turns red below a quarter.
 static void drawVitals(u16 *fb)
 {
   int n = n3ds_engine_party_size();
-  const u16 back = rgb565(40, 40, 40), danger = rgb565(140, 0, 0);
+  const u16 back = rgb565(24, 24, 24), danger = rgb565(150, 0, 0);
+  const int barW = 3, step = 4, boxW = 3 * step + 1;
   for (int i = 0; i < n && i < 4; i++) {
     int stats[6];
     n3ds_engine_champion_stats(i, stats);   // hp, maxHp, stamina, maxStamina, mana, maxMana
-    int x0 = (i < 2) ? 4 : TOP_W - 28;
-    int y0 = (i % 2) * 120 + 6;
-    const int barH = 104;
-    fillRect(fb, TOP_W, x0, y0, 24, 4, CHAMP_COLOR[i]);              // colour tab = party slot
+    int x0 = (i < 2) ? 0 : TOP_W - boxW;
+    int y0 = (i % 2) * 118 + 4;
+    const int barH = 96;
+    fillRect(fb, TOP_W, x0, y0, boxW, barH + 8, back);                 // backing
+    fillRect(fb, TOP_W, x0 + 1, y0 + 1, boxW - 2, 3, CHAMP_COLOR[i]);  // colour tab = party slot
     for (int b = 0; b < 3; b++) {
       int cur = stats[b * 2], max = stats[b * 2 + 1];
-      int bx = x0 + b * 9, by = y0 + 8;
+      int bx = x0 + 1 + b * step, by = y0 + 6;
       bool low = (b == 0 && max > 0 && cur * 4 < max && cur > 0);
-      fillRect(fb, TOP_W, bx, by, 6, barH, low ? danger : back);
+      if (low) fillRect(fb, TOP_W, bx, by, barW, barH, danger);
       if (max > 0 && cur > 0) {
         int h = cur >= max ? barH : cur * barH / max;
         if (h < 1) h = 1;
-        fillRect(fb, TOP_W, bx, by + barH - h, 6, h, CHAMP_COLOR[i]);
+        fillRect(fb, TOP_W, bx, by + barH - h, barW, h, CHAMP_COLOR[i]);
       }
     }
   }
 }
 
+// The game's message lines (y 169..199, coloured text on black) drawn over the bottom
+// of the view: only the text pixels, each with a dark outline so it stays readable
+// on any wall or floor. Nothing is drawn when there are no messages.
+static void drawMessages(u16 *fb)
+{
+  const Region &r = TOP_DUNGEON_TXT;
+  static unsigned char mask[TXT_H + 2][ST_W + 2];
+  bool any = false;
+  memset(mask, 0, sizeof mask);
+  for (int y = 0; y < TXT_H; y++)
+    for (int x = 0; x < ST_W; x++)
+      if (n3ds_st_buffer[(r.sy + y) * ST_W + x] != 0) { mask[y + 1][x + 1] = 1; any = true; }
+  if (!any) return;
+  const u16 shadow = rgb565(0, 0, 0);
+  for (int y = 0; y < TXT_H + 2; y++)
+    for (int x = 0; x < ST_W + 2; x++) {
+      int dx = r.dx + x - 1, dy = r.dy + y - 1;
+      if (dx < 0 || dx >= TOP_W || dy < 0 || dy >= TOP_H) continue;
+      if (mask[y][x]) putpx(fb, dx, dy, n3ds_st_buffer[(r.sy + y - 1) * ST_W + x - 1]);
+      else if ((y > 0 && mask[y - 1][x]) || (y < TXT_H + 1 && mask[y + 1][x]) ||
+               (x > 0 && mask[y][x - 1]) || (x < ST_W + 1 && mask[y][x + 1]))
+        putpx(fb, dx, dy, shadow);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Message log: every line the game prints (hooked in CSBCode.cpp PrintLines).
+// The game itself shows four lines that fade; the log keeps the last sixteen.
+// ---------------------------------------------------------------------------
+enum { LOG_LINES = 16, LOG_COLS = 49 };
+static char logText[LOG_LINES][LOG_COLS + 1];
+static u16 logColor[LOG_LINES];
+static int logHead = 0, logCount = 0;
+
+static u16 messageColor(int idx)
+{
+  for (int i = 0; i < 4; i++) if (idx == n3ds_engine_char_color(i)) return CHAMP_COLOR[i];
+  if (idx == 15) return rgb565(255, 255, 255);
+  if (idx == 4)  return rgb565(0, 200, 210);
+  return rgb565(200, 200, 200);
+}
+
+static void logNewLine(u16 c)
+{
+  logHead = (logHead + 1) % LOG_LINES;
+  logText[logHead][0] = 0;
+  logColor[logHead] = c;
+  if (logCount < LOG_LINES) logCount++;
+}
+
+void n3ds_note_message(int color, const char *text)
+{
+  if (!text) return;
+  u16 c = messageColor(color);
+  if (logCount == 0) logNewLine(c);
+  for (; *text; text++) {
+    char ch = *text;
+    char *line = logText[logHead];
+    int len = (int)strlen(line);
+    if (ch == '\n') { if (len) logNewLine(c); continue; }
+    if (len == 0) { logColor[logHead] = c; if (ch == ' ') continue; }
+    if (len >= LOG_COLS) {   // wrap at the last space; continuation lines are indented
+      char carry[LOG_COLS + 1] = "";
+      char *sp = strrchr(line, ' ');
+      if (ch != ' ' && sp && sp - line > 2) { strcpy(carry, sp + 1); *sp = 0; }
+      u16 lc = logColor[logHead];
+      logNewLine(lc);
+      line = logText[logHead];
+      snprintf(line, LOG_COLS + 1, "  %s", carry);
+      len = (int)strlen(line);
+      if (ch == ' ') continue;
+    }
+    if (ch >= 'a' && ch <= 'z') ch -= 32;
+    if ((unsigned char)ch < 32) ch = ' ';
+    line[len] = ch; line[len + 1] = 0;
+  }
+  presentPending = true;
+}
+
+static void drawLog(u16 *fb, int w, int x, int y, int lines, int lineH)
+{
+  int shown = 0;
+  for (int k = 0; k < logCount && shown < lines; k++) {   // newest at the bottom
+    int idx = (logHead - k + LOG_LINES) % LOG_LINES;
+    if (!logText[idx][0] && k == 0) continue;
+    u16 c = logColor[idx];
+    if (shown >= 3) {   // older lines dimmer
+      int r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
+      c = (u16)(((r * 5 / 8) << 11) | ((g * 5 / 8) << 5) | (b * 5 / 8));
+    }
+    drawText(fb, w, x, y + (lines - 1 - shown) * lineH, logText[idx], c);
+    shown++;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-map: squares the party has seen, per level. Dungeon Master has no map of
+// its own, so this is the biggest addition. Marked from the engine's cell data
+// (what the view shows: up to three squares ahead, and one either side).
+// ---------------------------------------------------------------------------
+enum { MAP_LEVELS = 64, MAP_DIM = 32 };
+static unsigned char seen[MAP_LEVELS][MAP_DIM][MAP_DIM];
+static int lastMapPos[4] = { -1, -1, -1, -1 };
+
+enum { ROOM_STONE = 0, ROOM_OPEN = 1, ROOM_PIT = 2, ROOM_STAIRS = 3, ROOM_DOOR = 4,
+       ROOM_TELEPORTER = 5, ROOM_FALSEWALL = 6 };
+
+static void markSeen(int l, int x, int y, int w, int h)
+{
+  if (l >= 0 && l < MAP_LEVELS && x >= 0 && y >= 0 && x < w && y < h && x < MAP_DIM && y < MAP_DIM) seen[l][x][y] = 1;
+}
+
+static bool blocksView(int cf)
+{
+  if (cf < 0) return true;
+  int type = cf >> 5;
+  if (type == ROOM_STONE || type == ROOM_FALSEWALL) return true;
+  if (type == ROOM_DOOR) { int s = cf & 7; return s != 0 && s != 5; }   // closed (5 = broken)
+  return false;
+}
+
+static void updateAutomap(void)
+{
+  int p[4];
+  n3ds_engine_party(p);
+  if (memcmp(p, lastMapPos, sizeof p) == 0) return;
+  memcpy(lastMapPos, p, sizeof p);
+  int l = p[0], x = p[1], y = p[2], f = p[3], w, h;
+  if (!n3ds_engine_level_size(l, &w, &h)) return;
+  int fx, fy, rx, ry;
+  n3ds_engine_delta(f, &fx, &fy);
+  n3ds_engine_delta(f + 1, &rx, &ry);
+  for (int d = 0; d <= 3; d++) {
+    int cx = x + fx * d, cy = y + fy * d;
+    for (int lat = -1; lat <= 1; lat++) markSeen(l, cx + rx * lat, cy + ry * lat, w, h);
+    if (d > 0 && blocksView(n3ds_engine_cell(l, cx, cy))) break;
+  }
+  presentPending = true;
+}
+
+static void drawAutomap(u16 *fb, int fbW, const Rect &area, int shift, int arrowShift)
+{
+  const u16 bg = rgb565(10, 10, 14), grid = rgb565(28, 28, 34), floorC = rgb565(118, 116, 108);
+  const u16 wallC = rgb565(64, 50, 38), pitC = rgb565(16, 16, 16), stairC = rgb565(214, 190, 90);
+  const u16 doorC = rgb565(205, 120, 40), partyC = rgb565(255, 255, 255);
+  fillRect(fb, fbW, area.x, area.y, area.w, area.h, bg);
+  int p[4];
+  n3ds_engine_party(p);
+  int l = p[0], px = p[1], py = p[2], f = p[3], w, h;
+  if (!n3ds_engine_level_size(l, &w, &h) || l < 0 || l >= MAP_LEVELS) return;
+  const int C = 10;   // pixels per square
+  int cols = area.w / C, rows = area.h / C;
+  int ox = area.x + (area.w - cols * C) / 2 + shift, oy = area.y + (area.h - rows * C) / 2;
+  int x0 = px - cols / 2, y0 = py - rows / 2;   // keep the party in the middle
+  for (int gy = 0; gy < rows; gy++)
+    for (int gx = 0; gx < cols; gx++) {
+      int mx = x0 + gx, my = y0 + gy;
+      int sx = ox + gx * C, sy = oy + gy * C;
+      if (mx < 0 || my < 0 || mx >= w || my >= h || mx >= MAP_DIM || my >= MAP_DIM) continue;
+      if (!seen[l][mx][my]) continue;
+      int cf = n3ds_engine_cell(l, mx, my);
+      int type = cf < 0 ? 0 : cf >> 5;
+      if (type == ROOM_STONE || type == ROOM_FALSEWALL) {   // false walls look like walls
+        fillRect(fb, fbW, sx, sy, C, C, wallC);
+        continue;
+      }
+      fillRect(fb, fbW, sx, sy, C, C, grid);
+      fillRect(fb, fbW, sx + 1, sy + 1, C - 1, C - 1, floorC);
+      if (type == ROOM_PIT) fillRect(fb, fbW, sx + 2, sy + 2, C - 3, C - 3, pitC);
+      else if (type == ROOM_STAIRS) for (int k = 1; k < C; k += 2) fillRect(fb, fbW, sx + 1, sy + k, C - 1, 1, stairC);
+      else if (type == ROOM_DOOR) {   // a bar across the passage
+        int left = n3ds_engine_cell(l, mx - 1, my), right = n3ds_engine_cell(l, mx + 1, my);
+        bool nsPassage = (left < 0 || (left >> 5) == ROOM_STONE) && (right < 0 || (right >> 5) == ROOM_STONE);
+        bool closed = (cf & 7) != 0 && (cf & 7) != 5;
+        u16 dc = closed ? doorC : rgb565(120, 80, 40);
+        if (nsPassage) fillRect(fb, fbW, sx + 1, sy + C / 2 - 1, C - 1, 2, dc);
+        else fillRect(fb, fbW, sx + C / 2 - 1, sy + 1, 2, C - 1, dc);
+      }
+    }
+  // The party: an arrow in its square pointing the way it faces.
+  int fx, fy;
+  n3ds_engine_delta(f, &fx, &fy);
+  int cx = ox + (px - x0) * C + C / 2 + arrowShift, cy = oy + (py - y0) * C + C / 2;
+  for (int a = -3; a <= 3; a++)            // along the facing
+    for (int b = -3; b <= 3; b++) {        // across it
+      int along = a + 3;                   // 0 at the tail .. 6 at the tip
+      if (abs(b) * 2 > 6 - along) continue;
+      int dx = fx * a - fy * b, dy = fy * a + fx * b;
+      int X = cx + dx, Y = cy + dy;
+      if (X >= area.x && X < area.x + area.w && Y >= area.y && Y < area.y + area.h) putpx(fb, X, Y, partyC);
+    }
+  char label[24];
+  snprintf(label, sizeof label, "LEVEL %d", l + 1);
+  drawText(fb, fbW, area.x + 3, area.y + 3, label, rgb565(220, 210, 180));
+}
+
+// ---------------------------------------------------------------------------
+// Top screen information panel (while the view is on the bottom, and with the
+// inventory open): party, auto-map, compass and light, message log.
+// ---------------------------------------------------------------------------
+static const Rect INFO_MAP = { 134, 0, 266, 176 };
+enum { INFO_PARTY_W = 130, INFO_BLOCK_H = 44, INFO_LOG_Y = 178, INFO_LOG_LINES = 7, INFO_LOG_H = 9 };
+
+static void drawBar(u16 *fb, int x, int y, int w, int h, int cur, int max, u16 c, u16 back)
+{
+  fillRect(fb, TOP_W, x, y, w, h, back);
+  if (max > 0 && cur > 0) {
+    int len = cur >= max ? w : cur * w / max;
+    if (len < 1) len = 1;
+    fillRect(fb, TOP_W, x, y, len, h, c);
+  }
+}
+
+static void drawParty(u16 *fb)
+{
+  int n = n3ds_engine_party_size();
+  const u16 back = rgb565(36, 36, 40), text = rgb565(225, 220, 205), danger = rgb565(150, 0, 0);
+  if (n == 0) {
+    drawText(fb, TOP_W, 4, 8, "NO PARTY YET", text);
+    drawText(fb, TOP_W, 4, 22, "TAP A MIRROR", rgb565(150, 145, 130));
+    drawText(fb, TOP_W, 4, 32, "TO MEET A", rgb565(150, 145, 130));
+    drawText(fb, TOP_W, 4, 42, "CHAMPION", rgb565(150, 145, 130));
+    return;
+  }
+  for (int i = 0; i < n && i < 4; i++) {
+    int y0 = i * INFO_BLOCK_H + 1;
+    int s[6], e[3];
+    n3ds_engine_champion_stats(i, s);
+    n3ds_engine_champion_extra(i, e);   // food, water, poison
+    u16 col = CHAMP_COLOR[i];
+    fillRect(fb, TOP_W, 2, y0, 4, 8, col);
+    drawText(fb, TOP_W, 9, y0, n3ds_engine_champion_name(i), s[0] > 0 ? text : rgb565(110, 100, 100));
+    if (e[2]) drawText(fb, TOP_W, INFO_PARTY_W - 48, y0, "POISON", rgb565(60, 220, 60));
+    const int vals[3] = { s[0], s[2] / 10, s[4] };   // DM shows stamina divided by ten
+    for (int b = 0; b < 3; b++) {
+      int by = y0 + 10 + b * 8;
+      bool low = (b == 0 && s[1] > 0 && s[0] * 4 < s[1] && s[0] > 0);
+      drawBar(fb, 2, by, 88, 6, s[b * 2], s[b * 2 + 1], col, low ? danger : back);
+      if (s[b * 2 + 1] > 0) {
+        char num[8];
+        snprintf(num, sizeof num, "%d", vals[b]);
+        drawText(fb, TOP_W, 94, by - 1, num, text);
+      }
+    }
+    // Food and water: DM's scale runs -1024..2048; yellow below 0, red below -512.
+    for (int k = 0; k < 2; k++) {
+      int v = e[k];
+      u16 c = v < -512 ? rgb565(220, 30, 30) : v < 0 ? rgb565(230, 210, 0) : (k ? rgb565(70, 120, 255) : rgb565(170, 110, 50));
+      drawBar(fb, 2 + k * 46, y0 + 35, 42, 4, v + 1024, 3072, c, back);
+    }
+  }
+}
+
+static void drawCompassAndLight(u16 *fb, const Rect &m)
+{
+  int p[4];
+  n3ds_engine_party(p);
+  static const char *const DIRS[4] = { "N", "E", "S", "W" };
+  char buf[16];
+  snprintf(buf, sizeof buf, "FACING %s", DIRS[p[3] & 3]);
+  drawText(fb, TOP_W, m.x + m.w - 8 * 8 - 3, m.y + 3, buf, rgb565(220, 210, 180));
+  // Light: 0 (dark) .. 5 (bright) from the palette the engine picked.
+  int light = 5 - n3ds_engine_light_level();
+  if (light < 0) light = 0;
+  if (light > 5) light = 5;
+  drawText(fb, TOP_W, m.x + 3, m.y + m.h - 11, "LIGHT", rgb565(220, 210, 180));
+  for (int k = 0; k < 5; k++)
+    fillRect(fb, TOP_W, m.x + 46 + k * 9, m.y + m.h - 10, 7, 7,
+             k < light ? rgb565(250, 200, 60) : rgb565(50, 46, 40));
+}
+
+static void drawInfo(u16 *fb, float eye, float slider)
+{
+  const u16 rule = rgb565(70, 62, 50);
+  drawParty(fb);
+  fillRect(fb, TOP_W, INFO_PARTY_W + 1, 0, 1, INFO_LOG_Y - 2, rule);
+  fillRect(fb, TOP_W, 0, INFO_LOG_Y - 2, TOP_W, 1, rule);
+  // 3D: the map sits slightly behind the screen and the party arrow in front of it.
+  int shift = (int)floorf(-eye * slider * 2.0f + 0.5f);
+  int arrow = (int)floorf(eye * slider * 3.0f + 0.5f);
+  drawAutomap(fb, TOP_W, INFO_MAP, shift, arrow - shift);
+  drawCompassAndLight(fb, INFO_MAP);
+  drawLog(fb, TOP_W, 4, INFO_LOG_Y, INFO_LOG_LINES, INFO_LOG_H);
+}
+
 static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
 {
   memset(fb, 0, TOP_W * TOP_H * 2);
-  if (layout == LAYOUT_DUNGEON) {
+  if ((layout == LAYOUT_DUNGEON && viewOnBottom) || layout == LAYOUT_INVENTORY) {
+    drawInfo(fb, eye, slider);
+  } else if (layout == LAYOUT_DUNGEON) {
     blitViewportStereo(fb, TOP_DUNGEON_VP, eye, slider);
-    blitRegion(fb, TOP_DUNGEON_TXT);
+    drawMessages(fb);
     drawVitals(fb);
   } else {
     blitRegion(fb, TOP_FULL);
   }
 }
 
+static bool fightShown(void) { return showFight || n3ds_engine_attack_menu_owner() != 0; }
+
 static const Region *bottomRegions(int *count)
 {
-  if (layout == LAYOUT_DUNGEON && partyEmpty) { *count = 2; return BOT_DUNGEON_EMPTY; }
-  if (layout == LAYOUT_DUNGEON)   { *count = 3; return BOT_DUNGEON; }
+  if (layout == LAYOUT_DUNGEON) {   // pop-ups first: they sit on top of the view
+    static Region list[4];
+    int n = 0;
+    if (showSpell) list[n++] = POP_SPELL;
+    if (fightShown()) list[n++] = POP_FIGHT;
+    list[n++] = BOT_PORTRAITS;
+    if (viewOnBottom) list[n++] = BOT_VIEW;
+    *count = n;
+    return list;
+  }
   if (layout == LAYOUT_INVENTORY) { *count = 2; return BOT_INVENTORY; }
   *count = 1;
   return BOT_FULL;
 }
 
-static void drawButtons(u16 *fb)
+static void drawTabs(u16 *fb)
 {
-  const u16 face = rgb565(52, 44, 36), edge = rgb565(150, 130, 100), text = rgb565(230, 220, 190);
-  // RECAST: shows whose spell it replays (colour) and how many runes.
-  fillRect(fb, BOT_W, BTN_RECAST.x, BTN_RECAST.y, BTN_RECAST.w, BTN_RECAST.h, face);
-  frameRect(fb, BOT_W, BTN_RECAST.x, BTN_RECAST.y, BTN_RECAST.w, BTN_RECAST.h, edge);
+  const u16 face = rgb565(52, 44, 36), on = rgb565(110, 84, 40), edge = rgb565(150, 130, 100);
+  const u16 text = rgb565(235, 225, 195), dim = rgb565(110, 100, 90);
+  bool party = n3ds_engine_party_size() > 0;
   bool haveSpell = lastCaster >= 0 && lastCaster < n3ds_engine_party_size();
-  if (haveSpell) {
-    fillRect(fb, BOT_W, BTN_RECAST.x + 3, BTN_RECAST.y + 3, 8, BTN_RECAST.h - 6, CHAMP_COLOR[lastCaster]);
-    drawText(fb, BOT_W, BTN_RECAST.x + 20, BTN_RECAST.y + 7, "RECAST", text, 2);
-    for (int i = 0; i < 4 && lastSpell[lastCaster][i]; i++)
-      fillRect(fb, BOT_W, BTN_RECAST.x + 20 + i * 12, BTN_RECAST.y + 28, 8, 8, CHAMP_COLOR[lastCaster]);
-  } else {
-    drawText(fb, BOT_W, BTN_RECAST.x + 20, BTN_RECAST.y + 14, "NO SPELL", rgb565(110, 100, 90), 2);
+  for (int i = 0; i < NUM_TABS; i++) {
+    Rect r = tabRect(i);
+    bool lit = (i == TAB_FIGHT && fightShown()) || (i == TAB_SPELL && showSpell);
+    bool live = (i == TAB_BAG || i == TAB_SWAP) ? party || i == TAB_SWAP : (i == TAB_RECAST ? haveSpell : party);
+    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, lit ? on : face);
+    frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, edge);
+    int len = (int)strlen(TAB_LABEL[i]);
+    drawText(fb, BOT_W, r.x + (r.w - len * 8) / 2, r.y + 6, TAB_LABEL[i], live ? text : dim);
+    if (i == TAB_RECAST && haveSpell) {   // whose spell, and how many runes
+      fillRect(fb, BOT_W, r.x + 3, r.y + 3, 3, r.h - 6, CHAMP_COLOR[lastCaster]);
+      for (int k = 0; k < 4 && lastSpell[lastCaster][k]; k++)
+        fillRect(fb, BOT_W, r.x + (r.w - 4 * 8) / 2 + k * 8 + 1, r.y + 17, 5, 4, CHAMP_COLOR[lastCaster]);
+    }
   }
-  // BAG: the leader's inventory.
-  fillRect(fb, BOT_W, BTN_BAG.x, BTN_BAG.y, BTN_BAG.w, BTN_BAG.h, face);
-  frameRect(fb, BOT_W, BTN_BAG.x, BTN_BAG.y, BTN_BAG.w, BTN_BAG.h, edge);
-  drawText(fb, BOT_W, BTN_BAG.x + 20, BTN_BAG.y + 14, "BAG", text, 2);
 }
+
+static void framePopup(u16 *fb, const Region &r)
+{
+  frameRect(fb, BOT_W, r.dx - 2, r.dy - 2, r.dw + 4, r.dh + 4, rgb565(0, 0, 0));
+  frameRect(fb, BOT_W, r.dx - 1, r.dy - 1, r.dw + 2, r.dh + 2, rgb565(200, 170, 110));
+}
+
+static void drawAutomap(u16 *fb, int fbW, const Rect &area, int shift, int arrowShift);
 
 static void drawBottom(u16 *fb)
 {
   memset(fb, 0, BOT_W * BOT_H * 2);
   int n;
   const Region *regs = bottomRegions(&n);
-  for (int i = 0; i < n; i++) blitRegion(fb, regs[i]);
+  if (layout == LAYOUT_DUNGEON && !viewOnBottom) drawAutomap(fb, BOT_W, MAP_ON_BOTTOM, 0, 0);
+  for (int i = n - 1; i >= 0; i--) blitRegion(fb, regs[i]);   // back to front
   if (layout == LAYOUT_DUNGEON) {
-    const Region &mv = partyEmpty ? BOT_DUNGEON_EMPTY[0] : BOT_DUNGEON[2];
-    frameRect(fb, BOT_W, mv.dx - 1, mv.dy - 1, mv.dw + 2, mv.dh + 2, rgb565(100, 100, 100));
-    if (!partyEmpty) drawButtons(fb);
+    if (fightShown()) framePopup(fb, POP_FIGHT);
+    if (showSpell) framePopup(fb, POP_SPELL);
+    drawTabs(fb);
   }
   if (dbgEnabled && dbgTX >= 0) {   // debug: magenta crosshair where the last tap landed
     for (int d = -4; d <= 4; d++) {
@@ -454,7 +757,6 @@ static void setupScreens(void)
 // The engine presents only when the screen changed. Presents are capped at ~60 Hz,
 // and a frame that arrives too soon is kept pending (never dropped) so the final
 // frame of an animation always reaches the screen; n3ds_poll() flushes it.
-static bool presentPending = false;
 static float lastSlider = -1.0f;
 static unsigned lastVitalsHash = 0;
 
@@ -550,6 +852,24 @@ static const u32 FACE_BUTTON[4] = { KEY_A, KEY_B, KEY_X, KEY_Y };   // champions
 static const u64 REPEAT_DELAY = SYSCLOCK_ARM11 / 4;   // 250 ms
 static const u64 REPEAT_RATE  = SYSCLOCK_ARM11 / 6;   // ~170 ms between repeated steps
 
+static void saveSettings(void);
+static void pressTab(int i)
+{
+  DBG("[n3ds] tab %s\n", TAB_LABEL[i]);
+  switch (i) {
+  case TAB_FIGHT:
+    if (fightShown() && n3ds_engine_attack_menu_owner() != 0) queueKey('\t', SC_TAB, 0);   // close the open menu
+    showFight = !fightShown();
+    break;
+  case TAB_SPELL:  showSpell = !showSpell; break;
+  case TAB_RECAST: recastLastSpell(); break;
+  case TAB_BAG:    toggleLeaderInventory(); break;
+  case TAB_SWAP:   viewOnBottom = !viewOnBottom; break;
+  }
+  if (i == TAB_SPELL || i == TAB_SWAP || i == TAB_FIGHT) saveSettings();
+  presentPending = true;
+}
+
 static void handleTouch(u32 held)
 {
   if (held & KEY_TOUCH) {
@@ -559,9 +879,13 @@ static void handleTouch(u32 held)
       touching = true;
       dbgTX = t.px; dbgTY = t.py; presentPending = true;
       touchOnButton = false;
-      if (layout == LAYOUT_DUNGEON && !partyEmpty) {   // 3DS-only shortcut buttons fire on press
-        if (inRect(BTN_RECAST, t.px, t.py)) { touchOnButton = true; recastLastSpell(); return; }
-        if (inRect(BTN_BAG, t.px, t.py))    { touchOnButton = true; toggleLeaderInventory(); return; }
+      if (layout == LAYOUT_DUNGEON) {   // 3DS-only tabs fire on press
+        for (int i = 0; i < NUM_TABS; i++) {
+          if (!inRect(tabRect(i), t.px, t.py)) continue;
+          touchOnButton = true;
+          pressTab(i);
+          return;
+        }
       }
       int x, y;
       if (!touchToST(t.px, t.py, &x, &y)) { touchOnButton = true; return; }   // gap: swallow this touch
@@ -618,8 +942,6 @@ bool n3ds_poll(void)
       layout = want;
       presentPending = true;
     }
-    bool empty = n3ds_engine_party_size() == 0;
-    if (empty != partyEmpty) { partyEmpty = empty; presentPending = true; }
     if (layout == LAYOUT_FULL) updateFullZoom((held & KEY_ZL) != 0);
   }
 
@@ -668,7 +990,8 @@ bool n3ds_poll(void)
   handleTouch(held);
   runActions();
 
-  if (layout == LAYOUT_DUNGEON) {   // vitals and the RECAST button change without engine redraws
+  if (layout == LAYOUT_DUNGEON || layout == LAYOUT_INVENTORY) updateAutomap();
+  if (layout == LAYOUT_DUNGEON || layout == LAYOUT_INVENTORY) {   // vitals and the RECAST button change without engine redraws
     static int lastShownCaster = -2;
     unsigned h = vitalsHash();
     if (h != lastVitalsHash || lastShownCaster != lastCaster) {
@@ -756,6 +1079,28 @@ static bool fileExists(const char *name)
   return stat(name, &st) == 0;
 }
 
+// Remembered between sessions: which screen has the view, and open pop-ups.
+static void saveSettings(void)
+{
+  FILE *f = fopen(DATA_DIR "/csb3ds.ini", "w");
+  if (!f) return;
+  fprintf(f, "view_on_bottom=%d\nshow_spell=%d\n", viewOnBottom ? 1 : 0, showSpell ? 1 : 0);
+  fclose(f);
+}
+
+static void loadSettings(void)
+{
+  FILE *f = fopen(DATA_DIR "/csb3ds.ini", "r");
+  if (!f) return;
+  char line[64];
+  int v;
+  while (fgets(line, sizeof line, f)) {
+    if (sscanf(line, "view_on_bottom=%d", &v) == 1) viewOnBottom = v != 0;
+    if (sscanf(line, "show_spell=%d", &v) == 1) showSpell = v != 0;
+  }
+  fclose(f);
+}
+
 void n3ds_init(void)
 {
   osSetSpeedupEnable(true);   // 804 MHz + L2 cache on New 3DS
@@ -766,6 +1111,7 @@ void n3ds_init(void)
 
   mkdir(DATA_DIR, 0777);
   (void)chdir(DATA_DIR);
+  loadSettings();
   if (fileExists("debug.txt") && freopen(DATA_DIR "/csb3ds.log", "w", stdout)) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     dup2(fileno(stdout), fileno(stderr));

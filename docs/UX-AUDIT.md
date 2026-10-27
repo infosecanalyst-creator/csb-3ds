@@ -41,6 +41,10 @@ saving, sleeping or recruiting champions.
 | 17 | Dungeon with no party yet | mostly empty bottom screen | dungeon view 1:1 and arrows 2x until the first champion joins | Use the space you have |
 | 18 | First dungeon load | about a minute on hardware (one SD access per tiny read) | data files read in one go and served from memory | |
 | 19 | Top screen while walking | flickered (frames drawn into the buffer on screen) | presents wait for the display's refresh | |
+| 20 | Where the dungeon view lives | big view on top, small touch copy on the bottom (the same picture twice) | the touch screen *is* the dungeon (1.3x); the top screen is information | Ryan's play-test; the screen you act on should be the one you look at |
+| 21 | Map | none (players drew graph paper) | auto-map of seen squares on the top screen | Etrian Odyssey, Grimrock's automap |
+| 22 | Messages | 4 lines that fade | 16-line log on the top screen | Modern RPG combat logs |
+| 23 | Movement arrows, spell and attack panels | always on screen | arrows removed (D-pad); runes and attack menu pop up on demand | Fewer, bigger targets |
 | 15 | Frame cost | divisions and float math per pixel | lookup tables; same pixels, about 3.3x faster to draw | |
 
 Typical fight, four champions, two rounds:

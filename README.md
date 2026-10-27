@@ -9,15 +9,19 @@ the window, renderer and input with a dual-screen 3DS layer.
 
 The layout follows the game's own state, so there is nothing to toggle.
 
-**In the dungeon** (normal play, no inventory open)
+**In the dungeon** (normal play)
 
 | Screen | What it shows |
 |---|---|
-| **Top** (400x240) | The dungeon view at 1.5x (336x204) with the message strip underneath, and every champion's health / stamina / mana bars in the side margins (health turns red below 25%). The 3D slider adds stereoscopic depth. |
-| **Bottom** (320x240) | Controls only: champion portraits and hands at 1:1, spell runes / attack menu / movement arrows at 1.5x, a small framed copy of the dungeon view for grabbing items, pressing wall buttons and opening doors, and the RECAST and BAG buttons. |
+| **Bottom** (touch) | Champion portraits and hands across the top, the dungeon view at 1.3x under them (tap to grab items, push buttons, open doors, throw), and five tabs: **FIGHT** (attack menu), **SPELL** (rune panel), **RECAST** (repeat the last spell), **BAG** (leader's inventory), **SWAP**. The attack menu and runes pop up over the right side of the view at 2x. |
+| **Top** (information) | Party panel (health / stamina / mana with numbers, food, water, poison), an **auto-map** of the squares you have seen with your position and facing, doors, stairs and pits, the level, compass and light level, and a log of the last messages. With the 3D slider up the map sits behind the screen and your arrow in front. |
 
-**Inventory open**: the whole screen on top; on the bottom, the portraits plus the
-inventory at 1.4x so the slots are finger-sized.
+**SWAP** puts the big dungeon view back on the top screen (full width, with stereo 3D,
+messages over the bottom and slim vitals bars on the edges) and the map on the bottom.
+The choice is remembered.
+
+**Inventory open**: the information screen on top; on the bottom, the portraits plus
+the inventory at 1.4x so the slots are finger-sized.
 
 **Everywhere else** (title, entrance, menus, champion mirror, freeze, sleep, save menu)
 
@@ -34,13 +38,15 @@ menu are still empty.
 
 | Input | Action |
 |---|---|
-| D-pad / Circle Pad | Step forward/back, turn left/right (hold to keep going) |
+| D-pad / Circle Pad | Step forward/back, turn left/right (hold to keep going); there are no on-screen arrows |
 | **L** / **R** | Strafe left / right |
 | **A / B / X / Y** | Champion 1 / 2 / 3 / 4 attacks (first attack) in one press; hold to keep attacking whenever the weapon is ready |
 | **ZL** + A/B/X/Y | That champion's second attack |
 | **ZR** + A/B/X/Y | That champion's third attack |
-| **RECAST** button | Repeat the last spell (shows the caster's colour and rune count) |
-| **SELECT** or **BAG** button | Open / close the leader's inventory |
+| **FIGHT** / **SPELL** tabs | Show the attack menu / spell runes (the attack menu also appears by itself while open) |
+| **RECAST** tab | Repeat the last spell (shows the caster's colour and rune count) |
+| **SELECT** or **BAG** tab | Open / close the leader's inventory |
+| **SWAP** tab | Dungeon view on the bottom (touch) or on the top (3D) |
 | Tap | Left click on whatever is under your finger |
 | **ZR** held + tap | Right click |
 | **ZL** (menus) | Show the whole bottom screen at 1:1 instead of the zoomed buttons |

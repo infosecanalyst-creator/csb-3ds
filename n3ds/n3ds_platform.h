@@ -46,6 +46,17 @@ int  n3ds_engine_attack_menu_owner(void); // 0 = none, else champion ordinal (1.
 bool n3ds_engine_cursor_is_arrow(void);    // false while an item is held (cursor shows it)
 void n3ds_engine_champion_stats(int i, int out[6]);   // hp,maxHp,stamina,maxSta,mana,maxMana
 bool n3ds_engine_button_bounds(int *x0, int *y0, int *x1, int *y1);   // ST coords, inclusive
+void n3ds_engine_champion_extra(int i, int out[3]);   // food, water, poisonCount
+const char *n3ds_engine_champion_name(int i);
+int  n3ds_engine_char_color(int i);        // the champion's message colour index
+int  n3ds_engine_light_level(void);        // engine palette 0 (bright) .. 5 (dark)
+void n3ds_engine_party(int out[4]);        // level, x, y, facing
+void n3ds_engine_delta(int facing, int *dx, int *dy);
+bool n3ds_engine_level_size(int level, int *w, int *h);
+int  n3ds_engine_cell(int level, int x, int y);   // CELLFLAG (type in bits 5-7), -1 outside
+
+// Called from the patched CSBCode.cpp for every message the game prints (log).
+void n3ds_note_message(int color, const char *text);
 
 // Called from the patched Magic.cpp each time a spell is cast (RECAST button).
 void n3ds_note_spell(int caster, const signed char *incantation);

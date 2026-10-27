@@ -165,6 +165,38 @@ bool n3ds_engine_button_bounds(int *x0, int *y0, int *x1, int *y1)
   *x0 = ax; *y0 = ay; *x1 = bx; *y1 = by;
   return true;
 }
+void n3ds_engine_champion_extra(int i, int out[3])
+{
+  out[0] = d.hero[i].food; out[1] = d.hero[i].water; out[2] = d.hero[i].poisonCount;
+}
+const char *n3ds_engine_champion_name(int i)
+{
+  static char names[4][9];
+  memcpy(names[i & 3], d.hero[i & 3].name, 8);
+  names[i & 3][8] = 0;
+  return names[i & 3];
+}
+int  n3ds_engine_char_color(int i)  { return (unsigned char)d.charColor[i & 3]; }
+int  n3ds_engine_light_level(void)  { return d.CurrentPalette; }
+void n3ds_engine_party(int out[4])
+{
+  out[0] = d.partyLevel; out[1] = d.partyX; out[2] = d.partyY; out[3] = d.partyFacing & 3;
+}
+void n3ds_engine_delta(int facing, int *dx, int *dy) { *dx = d.DeltaX[facing & 3]; *dy = d.DeltaY[facing & 3]; }
+bool n3ds_engine_level_size(int level, int *w, int *h)
+{
+  if (!d.pLevelDescriptors || !d.dungeonDatIndex || !d.pppdPointer10450) return false;
+  if (level < 0 || level >= d.dungeonDatIndex->NumLevel()) return false;
+  *w = d.pLevelDescriptors[level].LastColumn() + 1;
+  *h = d.pLevelDescriptors[level].LastRow() + 1;
+  return true;
+}
+int n3ds_engine_cell(int level, int x, int y)
+{
+  int w, h;
+  if (!n3ds_engine_level_size(level, &w, &h) || x < 0 || y < 0 || x >= w || y >= h) return -1;
+  return *GetCellFlagsAddress(level, x, y);
+}
 void n3ds_engine_champion_stats(int i, int out[6])
 {
   CHARDESC &c = d.hero[i];
@@ -294,6 +326,16 @@ def patch_csbui(t):
                 "#ifdef __3DS__\n  return n3ds_fopen(name, flags);\n#endif\n  return fopen(name, flags);")
 
 
+def patch_csbcode(t):
+    # Message log on the top screen: see every line the game prints.
+    t = edit(t, "CSBCode include", '#include "stdafx.h"\n',
+             '#include "stdafx.h"\n#ifdef __3DS__\n#include "n3ds_platform.h"\n#endif\n')
+    return edit(t, "CSBCode PrintLines hook",
+                "void PrintLines(const i32 color, const char *Text)\n{//(void)\n",
+                "void PrintLines(const i32 color, const char *Text)\n{//(void)\n"
+                "#ifdef __3DS__\n  n3ds_note_message(color, Text);\n#endif\n")
+
+
 def patch_hint(t):
     for name, d in (("S20", S20_DEF), ("TEXT", TEXT_DEF), ("CLICKMAP", CLICKMAP_DEF)):
         t = edit(t, f"Hint {name} alignment", d, PACK_OPEN + d + PACK_CLOSE)
@@ -309,6 +351,7 @@ PATCHES = {
     "LinCSBUI.cpp": patch_lincsbui,
     "SoundMixer.cpp": patch_soundmixer,
     "CSBUI.cpp": patch_csbui,
+    "CSBCode.cpp": patch_csbcode,
 }
 
 
