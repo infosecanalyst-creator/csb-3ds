@@ -583,8 +583,8 @@ static void drawAutomap(u16 *fb, int fbW, const Rect &area, int shift, int arrow
 // Top screen information panel (while the view is on the bottom, and with the
 // inventory open): party, auto-map, compass and light, message log.
 // ---------------------------------------------------------------------------
-static const Rect INFO_MAP = { 134, 0, 266, 176 };
-enum { INFO_PARTY_W = 130, INFO_BLOCK_H = 44, INFO_LOG_Y = 178, INFO_LOG_LINES = 7, INFO_LOG_H = 9 };
+static const Rect INFO_MAP = { 160, 0, 240, 176 };
+enum { INFO_PARTY_W = 156, INFO_BLOCK_H = 44, INFO_LOG_Y = 178, INFO_LOG_LINES = 7, INFO_LOG_H = 9 };
 
 static void drawBar(u16 *fb, int x, int y, int w, int h, int cur, int max, u16 c, u16 back)
 {
@@ -607,31 +607,45 @@ static void drawParty(u16 *fb)
     drawText(fb, TOP_W, 4, 42, "CHAMPION", rgb565(150, 145, 130));
     return;
   }
+  // Each champion: name in their party colour, then labelled bars with current/max:
+  //   HP  health (green; red below a quarter)   STA stamina (amber)   MP mana (blue)
+  //   FOOD and WATER bars (turn yellow, then red, when running low).
+  const u16 label = rgb565(165, 158, 140);
+  const u16 hpC = rgb565(60, 200, 70), hpLow = rgb565(230, 40, 30);
+  const u16 staC = rgb565(235, 170, 40), mpC = rgb565(70, 130, 255);
+  static const char *const NAMES[3] = { "HP", "STA", "MP" };
   for (int i = 0; i < n && i < 4; i++) {
     int y0 = i * INFO_BLOCK_H + 1;
     int s[6], e[3];
     n3ds_engine_champion_stats(i, s);
     n3ds_engine_champion_extra(i, e);   // food, water, poison
-    u16 col = CHAMP_COLOR[i];
-    fillRect(fb, TOP_W, 2, y0, 4, 8, col);
-    drawText(fb, TOP_W, 9, y0, n3ds_engine_champion_name(i), s[0] > 0 ? text : rgb565(110, 100, 100));
-    if (e[2]) drawText(fb, TOP_W, INFO_PARTY_W - 48, y0, "POISON", rgb565(60, 220, 60));
-    const int vals[3] = { s[0], s[2] / 10, s[4] };   // DM shows stamina divided by ten
+    bool alive = s[0] > 0;
+    if (i > 0) fillRect(fb, TOP_W, 0, y0 - 1, INFO_PARTY_W, 1, rgb565(60, 54, 44));   // divider
+    fillRect(fb, TOP_W, 2, y0, 4, 8, CHAMP_COLOR[i]);
+    drawText(fb, TOP_W, 9, y0, n3ds_engine_champion_name(i), alive ? CHAMP_COLOR[i] : rgb565(110, 100, 100));
+    if (!alive) drawText(fb, TOP_W, INFO_PARTY_W - 40, y0, "DEAD", rgb565(200, 60, 60));
+    else if (e[2]) drawText(fb, TOP_W, INFO_PARTY_W - 56, y0, "POISON", rgb565(60, 220, 60));
     for (int b = 0; b < 3; b++) {
-      int by = y0 + 10 + b * 8;
-      bool low = (b == 0 && s[1] > 0 && s[0] * 4 < s[1] && s[0] > 0);
-      drawBar(fb, 2, by, 88, 6, s[b * 2], s[b * 2 + 1], col, low ? danger : back);
-      if (s[b * 2 + 1] > 0) {
-        char num[8];
-        snprintf(num, sizeof num, "%d", vals[b]);
-        drawText(fb, TOP_W, 94, by - 1, num, text);
-      }
+      int by = y0 + 10 + b * 8, cur = s[b * 2], max = s[b * 2 + 1];
+      if (b == 1) { cur /= 10; max /= 10; }   // the game shows stamina divided by ten
+      bool low = b == 0 && max > 0 && cur * 4 < max;
+      u16 c = b == 0 ? (low ? hpLow : hpC) : b == 1 ? staC : mpC;
+      drawText(fb, TOP_W, 2, by, NAMES[b], label);
+      if (max <= 0) { drawText(fb, TOP_W, 30, by, "-", label); continue; }   // no mana: not a caster yet
+      drawBar(fb, 30, by + 1, 52, 6, cur, max, c, back);
+      char num[16];
+      snprintf(num, sizeof num, "%d/%d", cur, max);
+      drawText(fb, TOP_W, 86, by, num, text);
     }
-    // Food and water: DM's scale runs -1024..2048; yellow below 0, red below -512.
+    // Food and water: the game's scale runs -1024..2048; yellow below 0, red below -512.
+    static const char *const FW[2] = { "FOOD", "WATER" };
+    int fx = 2;
     for (int k = 0; k < 2; k++) {
       int v = e[k];
-      u16 c = v < -512 ? rgb565(220, 30, 30) : v < 0 ? rgb565(230, 210, 0) : (k ? rgb565(70, 120, 255) : rgb565(170, 110, 50));
-      drawBar(fb, 2 + k * 46, y0 + 35, 42, 4, v + 1024, 3072, c, back);
+      u16 c = v < -512 ? rgb565(230, 40, 30) : v < 0 ? rgb565(235, 210, 0) : (k ? rgb565(80, 150, 255) : rgb565(190, 130, 60));
+      fx = drawText(fb, TOP_W, fx, y0 + 34, FW[k], label) + 2;
+      drawBar(fb, fx, y0 + 35, 30, 6, v + 1024, 3072, c, back);
+      fx += 36;
     }
   }
 }

@@ -14,7 +14,7 @@ The layout follows the game's own state, so there is nothing to toggle.
 | Screen | What it shows |
 |---|---|
 | **Bottom** (touch) | Champion portraits and hands across the top, the dungeon view at 1.3x under them (tap to grab items, push buttons, open doors, throw), and five tabs: **FIGHT** (attack menu), **SPELL** (rune panel), **RECAST** (repeat the last spell), **BAG** (leader's inventory), **SWAP**. The attack menu and runes pop up over the right side of the view at 2x. |
-| **Top** (information) | Party panel (health / stamina / mana with numbers, food, water, poison), an **auto-map** of the squares you have seen with your position and facing, doors, stairs and pits, the level, compass and light level, and a log of the last messages. With the 3D slider up the map sits behind the screen and your arrow in front. |
+| **Top** (information) | Party panel (each champion's name in their colour, labelled **HP** / **STA** / **MP** bars with current/max, **FOOD** and **WATER** bars, POISON or DEAD flags), an **auto-map** of the squares you have seen (solid lines are walls, dotted lines are open edges; a white arrow with a red tip shows where you face), doors, stairs and pits, the level, compass and light level, and a log of the last messages. With the 3D slider up the map sits behind the screen and your arrow in front. |
 
 **SWAP** puts the big dungeon view back on the top screen (full width, with stereo 3D,
 messages over the bottom and slim vitals bars on the edges) and the map on the bottom.
