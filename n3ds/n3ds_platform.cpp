@@ -67,8 +67,10 @@ static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, (TOP_W - 384) / 2, 0, 
 // only while wanted. Movement is on the D-pad / Circle Pad.
 static const Region BOT_PORTRAITS = { 0, 0, ST_W, PORT_H, 0, 0, 320, PORT_H };
 static const Region BOT_VIEW      = { VP_X, VP_Y, VP_W, VP_H, 14, 34, 292, 178 };
-static const Region POP_FIGHT     = { CTL_X, 75,   CTL_W, 48, 128, 34,  192, 90 };   // action icons / attack menu
-static const Region POP_SPELL     = { CTL_X, VP_Y, CTL_W, 42, 128, 126, 192, 84 };   // caster tabs, runes, cast
+// Pop-up sources measured from hardware photos: the panels start 8 px into the
+// controls column; the spell panel is y 41..75, the action icons / attack menu y 77..123.
+static const Region POP_FIGHT     = { 232, 77, 88, 47, 142, 36,  176, 94 };   // action icons / attack menu (2x)
+static const Region POP_SPELL     = { 232, 41, 88, 35, 142, 138, 176, 70 };   // caster tabs, runes, cast (2x)
 enum { TAB_Y = 214, TAB_H = 26, NUM_TABS = 5, TAB_W = BOT_W / NUM_TABS };
 enum { TAB_FIGHT, TAB_SPELL, TAB_RECAST, TAB_BAG, TAB_SWAP };
 static const char *const TAB_LABEL[NUM_TABS] = { "FIGHT", "SPELL", "RECAST", "BAG", "SWAP" };
