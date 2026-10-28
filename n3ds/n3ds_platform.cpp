@@ -99,6 +99,7 @@ static Region BOT_FULL[1] = { BOT_FULL_1X };
 enum Layout { LAYOUT_FULL = 0, LAYOUT_DUNGEON = 1, LAYOUT_INVENTORY = 2 };
 static Layout layout = LAYOUT_FULL;
 static bool presentPending = false;   // something on screen changed; draw at the next chance
+static bool topDirty = true;          // the top screen needs redrawing too (not just the bottom)
 
 // Stereoscopic depth -------------------------------------------------------
 // DM's viewport is a one-point perspective: walls at each distance form nested
@@ -222,7 +223,10 @@ static bool touching = false, touchRight = false, touchOnButton = false;
 static int lastSTX = 0, lastSTY = 0;   // where the last tap put the game cursor
 
 static u64 parkCursorAt = 0;   // when to move the arrow out of the way (0 = no)
-static const int PARK_X = 300, PARK_Y = 8;   // empty space right of the 4th portrait
+// The message-text rows (y 169..199) have no buttons and are not shown on the bottom
+// screen. (The old spot right of the portraits is the party-formation box once four
+// champions have joined, where the cursor turns into a hand.)
+static const int PARK_X = 318, PARK_Y = 198;
 
 static bool clickPending = false, clickRight = false;
 static int clickX, clickY;
@@ -483,7 +487,7 @@ void n3ds_note_message(int color, const char *text)
     if ((unsigned char)ch < 32) ch = ' ';
     line[len] = ch; line[len + 1] = 0;
   }
-  presentPending = true;
+  presentPending = topDirty = true;
 }
 
 static void drawLog(u16 *fb, int w, int x, int y, int lines, int lineH)
@@ -544,7 +548,7 @@ static void updateAutomap(void)
     for (int lat = -1; lat <= 1; lat++) markSeen(l, cx + rx * lat, cy + ry * lat, w, h);
     if (d > 0 && blocksView(n3ds_engine_cell(l, cx, cy))) break;
   }
-  presentPending = true;
+  presentPending = topDirty = true;
 }
 
 static void drawAutomap(u16 *fb, int fbW, const Rect &area, int shift, int arrowShift)
@@ -854,22 +858,20 @@ static void drawBottom(u16 *fb)
 
 // The portrait strip is drawn 1:1, where the hands are 16 px and the name strip
 // 7 px: stylus targets. Snap a tap anywhere in a champion's 69 px box to the
-// nearest hotspot, so each one is a finger-sized area:
-//   top 9 rows: the name (makes that champion the leader)
-//   below: left hand | right hand | the bars (opens the inventory)
+// nearest hotspot, so each one is a finger-sized area. From the game's own button
+// table (graphic 561): left-click the name (y 0..6) = make leader, left-click a
+// hand (16x16 at x+4 / x+24, y 10) = take or place, and a right-click anywhere in
+// the box opens that champion's inventory. So the bars area becomes a right-click.
+static bool portraitWantsRight = false;   // set by touchToST for the bars zone
 static void snapPortraitTap(int *stx, int *sty)
 {
   int champ = *stx / 69;
   if (champ >= n3ds_engine_party_size() || champ > 3) return;
   int lx = *stx - champ * 69, base = champ * 69;
-  int hx[2], hy[2];
-  for (int h = 0; h < 2; h++)   // the engine's own hand positions (fallback: DM's layout)
-    if (!n3ds_engine_icon_pos(2 * champ + h, &hx[h], &hy[h])) { hx[h] = base + 4 + 20 * h; hy[h] = 10; }
-  int mid = (hx[0] + hx[1]) / 2 + 8 - base;   // between the two hands
-  if (*sty < 9)                 { *stx = base + 18; *sty = 3; }
-  else if (lx < mid)            { *stx = hx[0] + 8; *sty = hy[0] + 8; }
-  else if (lx < mid + 22)       { *stx = hx[1] + 8; *sty = hy[1] + 8; }
-  else                          { *stx = base + 54; *sty = 16; }
+  if (*sty < 9)        { *stx = base + 20; *sty = 3; }
+  else if (lx < 22)    { *stx = base + 12; *sty = 18; }
+  else if (lx < 43)    { *stx = base + 32; *sty = 18; }
+  else                 { *stx = base + 54; *sty = 14; portraitWantsRight = true; }
 }
 
 // Bottom-screen pixel -> ST coordinate, through whichever region contains it.
@@ -882,6 +884,7 @@ static bool touchToST(int px, int py, int *stx, int *sty)
     if (py < r.dy) py = r.dy;
     if (py >= r.dy + r.dh) py = r.dy + r.dh - 1;
   }
+  portraitWantsRight = false;
   for (int i = 0; i < n; i++) {
     const Region &r = regs[i];
     if (px < r.dx || px >= r.dx + r.dw || py < r.dy || py >= r.dy + r.dh) continue;
@@ -912,29 +915,41 @@ static unsigned lastVitalsHash = 0;
 
 static void flushPresent(bool force)
 {
+  // At most one present per display frame (the 3DS refreshes at 59.83 Hz, 16.7 ms).
+  // A swap takes effect at the next vertical blank, so leaving 17.5 ms between
+  // swaps guarantees the buffer we draw into is no longer on screen, without
+  // making the engine wait for the display (waiting slowed the game down whenever
+  // it redrew often, e.g. while the cursor was animating). A frame that arrives
+  // too early stays pending and n3ds_poll() presents it.
   static u64 lastTick = 0;
   u64 now = svcGetSystemTick();
-  if (!force && now - lastTick < SYSCLOCK_ARM11 / 62) return;
+  if (!force && now - lastTick < SYSCLOCK_ARM11 * 35 / 2000) return;
   lastTick = now;
   presentPending = false;
   dbgPresents++;
 
-  float slider = sliderStep(osGet3DSliderState()) / 32.0f;
-  lastSlider = slider;
-  drawTop((u16 *)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL), -1.0f, slider);
-  drawTop((u16 *)gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, NULL, NULL), +1.0f, slider);
   drawBottom((u16 *)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL));
-  gfxFlushBuffers();
-  gfxSwapBuffers();
-  // Wait for the swap to take effect. Without this, two presents inside one
-  // display frame meant the next frame was drawn into the buffer still being
-  // shown, which flickered and tore while walking.
-  gspWaitForVBlank();
+  if (topDirty) {
+    topDirty = false;
+    float slider = sliderStep(osGet3DSliderState()) / 32.0f;
+    lastSlider = slider;
+    drawTop((u16 *)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL), -1.0f, slider);
+    drawTop((u16 *)gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, NULL, NULL), +1.0f, slider);
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+  } else {
+    gfxFlushBuffers();
+    gfxScreenSwapBuffers(GFX_BOTTOM, false);
+  }
 }
 
+// The engine changed its picture. The top screen only shows it in SWAP mode and on
+// menus; the dashboard (party, map, log) has its own change tracking, so a moving
+// cursor or an animation redraws just the bottom screen.
 void n3ds_present(void)
 {
   presentPending = true;
+  if (layout == LAYOUT_FULL || (layout == LAYOUT_DUNGEON && !viewOnBottom)) topDirty = true;
   flushPresent(false);
 }
 
@@ -967,7 +982,7 @@ static void updateFullZoom(bool forceOneToOne)
   if (memcmp(&r, &BOT_FULL[0], sizeof r) != 0) {
     DBG("[n3ds] full zoom src=(%d,%d %dx%d)\n", r.sx, r.sy, r.sw, r.sh);
     BOT_FULL[0] = r;
-    presentPending = true;
+    presentPending = topDirty = true;
   }
 }
 
@@ -1022,7 +1037,7 @@ static void pressTab(int i)
   case TAB_HELP:   manualRequested = true; break;
   }
   if (i == TAB_SPELL || i == TAB_SWAP || i == TAB_FIGHT) saveSettings();
-  presentPending = true;
+  presentPending = topDirty = true;
 }
 
 static int recastTouchX, recastTouchY, lastTapX, lastTapY;
@@ -1035,7 +1050,7 @@ static void handleTouch(u32 held)
     hidTouchRead(&t);
     if (!touching) {
       touching = true;
-      dbgTX = t.px; dbgTY = t.py; presentPending = true;
+      dbgTX = t.px; dbgTY = t.py; presentPending = topDirty = true;
       touchOnButton = false;
       if (layout == LAYOUT_DUNGEON) {   // 3DS-only tabs fire on press
         for (int i = 0; i < NUM_TABS; i++) {
@@ -1054,14 +1069,14 @@ static void handleTouch(u32 held)
         eatFromSlot(lastTapX, lastTapY);
         return;
       }
-      touchRight = (held & KEY_ZR) != 0;          // ZR + tap = right mouse button
+      touchRight = (held & KEY_ZR) != 0 || portraitWantsRight;   // ZR + tap = right mouse button
       DBG("[n3ds] touch DOWN px=(%d,%d) st=(%d,%d) layout=%d right=%d\n",
           t.px, t.py, x, y, (int)layout, touchRight);
       n3ds_send_mouse_move(x, y);
       n3ds_send_mouse_button(touchRight, true, x, y);
       lastSTX = x; lastSTY = y;
     } else if (recastHeld) {   // RECAST held: after a moment, offer every champion's spell
-      if (!recastChooser && svcGetSystemTick() - recastSince > 300 * MS) { recastChooser = true; presentPending = true; }
+      if (!recastChooser && svcGetSystemTick() - recastSince > 300 * MS) { recastChooser = true; presentPending = topDirty = true; }
       recastTouchX = t.px; recastTouchY = t.py;
     } else if (!touchOnButton) {
       int x, y;
@@ -1076,7 +1091,7 @@ static void handleTouch(u32 held)
       if (!recastChooser) recastLastSpell();
       else for (int c = 0; c < 4; c++) if (inRect(chooserButton(c), recastTouchX, recastTouchY)) recastSpell(c);
       recastHeld = recastChooser = false;
-      presentPending = true;
+      presentPending = topDirty = true;
       return;
     }
     if (!touchOnButton) {
@@ -1129,7 +1144,7 @@ bool n3ds_poll(void)
     if (want != layout) {
       DBG("[n3ds] layout %d -> %d\n", (int)layout, (int)want);
       layout = want;
-      presentPending = true;
+      presentPending = topDirty = true;
     }
     if (layout == LAYOUT_FULL) updateFullZoom((held & KEY_ZL) != 0);
   }
@@ -1186,8 +1201,8 @@ bool n3ds_poll(void)
   {   // the FIGHT pop-up closes by itself once an attack has been chosen
     static int prevOwner = 0;
     int owner = layout == LAYOUT_DUNGEON ? n3ds_engine_attack_menu_owner() : 0;
-    if (prevOwner != 0 && owner == 0) { showFight = false; presentPending = true; }
-    if (owner != prevOwner) presentPending = true;
+    if (prevOwner != 0 && owner == 0) { showFight = false; presentPending = topDirty = true; }
+    if (owner != prevOwner) presentPending = topDirty = true;
     prevOwner = owner;
   }
   {   // hold ZL on its own for a moment: the whole top screen shows the message log
@@ -1198,16 +1213,16 @@ bool n3ds_poll(void)
     else if (!zlSince) zlSince = svcGetSystemTick();
     bool want = zlAlone && svcGetSystemTick() - zlSince > 300 * MS &&
                 (layout == LAYOUT_INVENTORY || (layout == LAYOUT_DUNGEON && viewOnBottom));
-    if (want != logView) { logView = want; presentPending = true; }
+    if (want != logView) { logView = want; presentPending = topDirty = true; }
   }
   if (layout == LAYOUT_DUNGEON || layout == LAYOUT_INVENTORY) {   // vitals and the RECAST button change without engine redraws
     static int lastShownCaster = -2;
     unsigned h = vitalsHash();
     if (h != lastVitalsHash || lastShownCaster != lastCaster) {
-      lastVitalsHash = h; lastShownCaster = lastCaster; presentPending = true;
+      lastVitalsHash = h; lastShownCaster = lastCaster; presentPending = topDirty = true;
     }
   }
-  if (sliderStep(osGet3DSliderState()) != sliderStep(lastSlider)) presentPending = true;
+  if (sliderStep(osGet3DSliderState()) != sliderStep(lastSlider)) presentPending = topDirty = true;
   if (presentPending) flushPresent(false);
   return true;
 }
@@ -1474,7 +1489,7 @@ static void showManual(void)
     gspWaitForVBlank();
   }
   DBG("[n3ds] manual closed\n");
-  presentPending = true;
+  presentPending = topDirty = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1502,7 +1517,7 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
   consoleClear();
   setupScreens();
   n3ds_force_redraw();
-  presentPending = true;
+  presentPending = topDirty = true;
   armSuppress = true;
   return result;
 }

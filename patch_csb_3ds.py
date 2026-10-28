@@ -191,19 +191,21 @@ int n3ds_engine_free_backpack_slot(int i)
   for (int s = 13; s < 30; s++) if (d.hero[i].Possession(s) == RNnul) return s;
   return -1;
 }
-bool n3ds_engine_slot_pos(int slot, int *x, int *y)
+// Centre of a button in the inventory's button list (codes from graphic 561:
+// 28 + possession index for the body and backpack slots, 70 for the mouth).
+static bool inventoryButtonCentre(int code, int *x, int *y)
 {
-  if (!n3ds_engine_icon_pos(slot + 8, x, y)) return false;
-  *x += 8; *y += 8;
-  return true;
+  for (int k = 0; k < 38 && d.Buttons17760[k].word0 != 0; k++) {   // btn Buttons17760[38]
+    btn &b = d.Buttons17760[k];
+    if (b.word0 != code || !(b.button & 2)) continue;
+    *x = (b.xMin + b.xMax) / 2;
+    *y = (b.yMin + b.yMax) / 2;
+    return true;
+  }
+  return false;
 }
-bool n3ds_engine_mouth_pos(int *x, int *y)
-{
-  RectPos *r = (RectPos *)d.Word1398;   // the box around the mouth, viewport-relative
-  *x = (r->w.x1 + r->w.x2) / 2;
-  *y = (r->w.y1 + r->w.y2) / 2 + 33;
-  return *x > 0 && *x < 224 && *y > 33 && *y < 169;
-}
+bool n3ds_engine_slot_pos(int slot, int *x, int *y) { return inventoryButtonCentre(28 + slot, x, y); }
+bool n3ds_engine_mouth_pos(int *x, int *y)          { return inventoryButtonCentre(70, x, y); }
 bool n3ds_engine_hand_full(void) { return d.objectInHand != RNnul; }
 const char *n3ds_engine_champion_name(int i)
 {

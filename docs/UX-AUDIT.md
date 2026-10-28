@@ -51,6 +51,8 @@ saving, sleeping or recruiting champions.
 | 27 | Stow a picked-up item | open bag, tap slot, close (3+) | STOW (1) | |
 | 28 | Portrait hands / leader | 16 px and 7 px targets | whole 69 px box split into name, hands, bars | Touch HIG |
 | 29 | Modal close leaking input | B closing the manual attacked with champion 2 | buttons held through a modal are ignored until released | QA |
+| 30 | Lag when the game redraws often (cursor, animations) | every redraw waited for the display and repainted both screens | presents never block the engine; the top screen is only repainted when its content changes | Hardware report |
+| 31 | Tapping a champion's bars | did nothing (the game opens inventories on a right-click in the box) | bars zone sends a right-click | Button table read from graphic 561 |
 | 15 | Frame cost | divisions and float math per pixel | lookup tables; same pixels, about 3.3x faster to draw | |
 
 Typical fight, four champions, two rounds:
