@@ -913,18 +913,26 @@ static float lastSlider = -1.0f;
 static inline int sliderStep(float s) { return s < 0 ? -1 : (int)(s * 32.0f + 0.5f); }
 static unsigned lastVitalsHash = 0;
 
+static volatile u32 vblankCount = 0;
+static void onVBlank(void *) { vblankCount++; }
+
 static void flushPresent(bool force)
 {
-  // At most one present per display frame (the 3DS refreshes at 59.83 Hz, 16.7 ms).
-  // A swap takes effect at the next vertical blank, so leaving 17.5 ms between
-  // swaps guarantees the buffer we draw into is no longer on screen, without
-  // making the engine wait for the display (waiting slowed the game down whenever
-  // it redrew often, e.g. while the cursor was animating). A frame that arrives
-  // too early stays pending and n3ds_poll() presents it.
-  static u64 lastTick = 0;
+  // At most one present per display frame. A swap takes effect at the next
+  // vertical blank; until then the "back" buffer is still the one on screen, so
+  // drawing into it flickers. A VBlank counter (bumped by a GSP event callback)
+  // tells us whether the last swap has happened, without making the engine wait
+  // for the display (waiting slowed the game down whenever it redrew often).
+  // A frame that arrives too early stays pending and n3ds_poll() presents it.
+  static u32 lastSwapVBlank = 0xffffffff;
+  static u64 lastSwapTick = 0;
   u64 now = svcGetSystemTick();
-  if (!force && now - lastTick < SYSCLOCK_ARM11 * 35 / 2000) return;
-  lastTick = now;
+  bool landed = vblankCount != lastSwapVBlank ||
+                now - lastSwapTick > (u64)SYSCLOCK_ARM11 / 20;   // 50 ms: safe even if no callback ever arrives
+  if (!landed) {
+    if (!force) return;
+    gspWaitForVBlank();   // forced: wait for the previous swap to land
+  }
   presentPending = false;
   dbgPresents++;
 
@@ -941,6 +949,8 @@ static void flushPresent(bool force)
     gfxFlushBuffers();
     gfxScreenSwapBuffers(GFX_BOTTOM, false);
   }
+  lastSwapVBlank = vblankCount;
+  lastSwapTick = svcGetSystemTick();
 }
 
 // The engine changed its picture. The top screen only shows it in SWAP mode and on
@@ -1635,6 +1645,7 @@ void n3ds_init(void)
   osSetSpeedupEnable(true);   // 804 MHz + L2 cache on New 3DS
   gfxInitDefault();
   setupScreens();
+  gspSetEventCallback(GSPGPU_EVENT_VBlank0, onVBlank, NULL, false);
   buildDepthMap();
   memset(n3ds_st_buffer, 0, sizeof(n3ds_st_buffer));
 
