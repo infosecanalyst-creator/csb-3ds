@@ -44,8 +44,10 @@ menu are still empty.
 | **ZL** + A/B/X/Y | That champion's second attack |
 | **ZR** + A/B/X/Y | That champion's third attack |
 | **FIGHT** / **SPELL** tabs | Show the attack menu / spell runes (the attack menu also appears by itself while open) |
-| **RECAST** tab | Repeat the last spell (shows the caster's colour and rune count) |
-| **SELECT** or **BAG** tab | Open / close the leader's inventory |
+| **RECAST** tab | Repeat the last spell; hold it to choose any champion's last spell |
+| **SELECT** or **BAG** tab | Open / close the leader's inventory (with an item in hand BAG reads **STOW** and puts it in the leader's backpack) |
+| Double-tap food or a flask (inventory) | Eat or drink it |
+| **ZL** held (dungeon) | Whole message log on the top screen |
 | **SWAP** tab | Dungeon view on the bottom (touch) or on the top (3D) |
 | **HELP** tab, or **SELECT** on menu screens | The instruction manual |
 | Tap | Left click on whatever is under your finger |

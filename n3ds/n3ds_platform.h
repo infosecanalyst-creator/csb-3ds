@@ -46,7 +46,14 @@ int  n3ds_engine_attack_menu_owner(void); // 0 = none, else champion ordinal (1.
 bool n3ds_engine_cursor_is_arrow(void);    // false while an item is held (cursor shows it)
 void n3ds_engine_champion_stats(int i, int out[6]);   // hp,maxHp,stamina,maxSta,mana,maxMana
 bool n3ds_engine_button_bounds(int *x0, int *y0, int *x1, int *y1);   // ST coords, inclusive
-void n3ds_engine_champion_extra(int i, int out[3]);   // food, water, poisonCount
+void n3ds_engine_champion_extra(int i, int out[4]);   // food, water, poisonCount, busy (recovering)
+int  n3ds_engine_leader(void);             // 0..3, or -1
+int  n3ds_engine_rune_count(int i);        // runes the champion has typed but not cast
+bool n3ds_engine_icon_pos(int square, int *x, int *y);   // ST top-left of an item square (0-7 hands, 8+ inventory)
+int  n3ds_engine_free_backpack_slot(int i);              // possession index 13..29, or -1
+bool n3ds_engine_slot_pos(int slot, int *x, int *y);     // ST centre of an inventory slot (inventory open)
+bool n3ds_engine_mouth_pos(int *x, int *y);              // ST centre of the mouth (inventory open)
+bool n3ds_engine_hand_full(void);                        // something on the cursor
 const char *n3ds_engine_champion_name(int i);
 int  n3ds_engine_char_color(int i);        // the champion's message colour index
 int  n3ds_engine_light_level(void);        // engine palette 0 (bright) .. 5 (dark)
@@ -57,6 +64,10 @@ int  n3ds_engine_cell(int level, int x, int y);   // CELLFLAG (type in bits 5-7)
 
 // Called from the patched CSBCode.cpp for every message the game prints (log).
 void n3ds_note_message(int color, const char *text);
+
+// Called from the patched SaveGame.cpp: the auto-map is kept beside each save.
+void n3ds_automap_saved(const char *saveName, const char *backupName);
+void n3ds_automap_loaded(const char *saveName);   // NULL = new game
 
 // Called from the patched Magic.cpp each time a spell is cast (RECAST button).
 void n3ds_note_spell(int caster, const signed char *incantation);

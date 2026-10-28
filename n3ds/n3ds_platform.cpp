@@ -27,6 +27,9 @@ static inline u16 rgb565(int r, int g, int b) { return (u16)(((r >> 3) << 11) | 
 // Dungeon Master's champion colours, by party slot.
 static const u16 CHAMP_COLOR[4] = {
   rgb565(0, 204, 0), rgb565(238, 221, 0), rgb565(238, 0, 0), rgb565(51, 102, 255) };
+// Lighter versions for text on black (the game's red and blue are hard to read in the 8x8 font).
+static const u16 CHAMP_TEXT[4] = {
+  rgb565(70, 225, 70), rgb565(240, 225, 40), rgb565(255, 95, 95), rgb565(125, 165, 255) };
 
 // ---------------------------------------------------------------------------
 // Screen geometry
@@ -66,12 +69,14 @@ static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, (TOP_W - 384) / 2, 0, 
 // The attack menu and spell runes pop up over the right side of the view at 2x,
 // only while wanted. Movement is on the D-pad / Circle Pad.
 static const Region BOT_PORTRAITS = { 0, 0, ST_W, PORT_H, 0, 0, 320, PORT_H };
-static const Region BOT_VIEW      = { VP_X, VP_Y, VP_W, VP_H, 14, 34, 292, 178 };
+static const Region BOT_VIEW      = { VP_X, VP_Y, VP_W, VP_H, 0, 34, 320, 174 };   // edge to edge (1.43x by 1.28x)
 // Pop-up sources measured from hardware photos: the panels start 8 px into the
 // controls column; the spell panel is y 41..75, the action icons / attack menu y 77..123.
-static const Region POP_FIGHT     = { 232, 77, 88, 47, 142, 36,  176, 94 };   // action icons / attack menu (2x)
-static const Region POP_SPELL     = { 232, 41, 88, 35, 142, 138, 176, 70 };   // caster tabs, runes, cast (2x)
-enum { TAB_Y = 214, TAB_H = 26, NUM_TABS = 6, TAB_W = BOT_W / NUM_TABS };
+// Both sit in the lower right, just above the tabs, so the monster in front of you
+// (the middle of the view) stays visible. Only one is shown at a time.
+static const Region POP_FIGHT     = { 232, 77, 88, 47, 142, 113, 176, 94 };   // action icons / attack menu (2x)
+static const Region POP_SPELL     = { 232, 41, 88, 35, 142, 137, 176, 70 };   // caster tabs, runes, cast (2x)
+enum { TAB_Y = 210, TAB_H = 30, NUM_TABS = 6, TAB_W = BOT_W / NUM_TABS };
 enum { TAB_FIGHT, TAB_SPELL, TAB_RECAST, TAB_BAG, TAB_SWAP, TAB_HELP };
 static const char *const TAB_LABEL[NUM_TABS] = { "FIGHT", "SPELL", "RECAST", "BAG", "SWAP", "HELP" };
 static bool manualRequested = false;   // opened from n3ds_poll, outside the touch handler
@@ -80,6 +85,7 @@ static inline Rect tabRect(int i) { Rect r = { i * TAB_W, TAB_Y, TAB_W - 2, TAB_
 // auto-map takes its place on the bottom.
 static const Rect MAP_ON_BOTTOM = { 0, 34, BOT_W, 178 };
 static bool viewOnBottom = true, showFight = false, showSpell = false;
+static bool logView = false;   // ZL held: the top screen shows the whole message log
 // Inventory: portraits 1:1 + the inventory panel at 1.4x, so slots are finger-sized.
 static const Region BOT_INVENTORY[] = {
   { 0,    0,    ST_W, PORT_H, 0, 0,  320, PORT_H },
@@ -189,7 +195,7 @@ void n3ds_note_spell(int caster, const signed char *incantation)
 // Scripted input: short sequences of key presses / clicks, spaced out so the
 // engine's small mouse queue (4 entries) never overflows.
 // ---------------------------------------------------------------------------
-struct Action { int kind, a, b; u64 dueTicks; };   // kind 0 = key(sym=a, scan=b), 1 = right-click at (a,b)
+struct Action { int kind, a, b; u64 dueTicks; };   // kind 0 = key(sym=a, scan=b), 1 = right-click, 2 = left-click at (a,b)
 static Action actQueue[24];
 static int actHead = 0, actCount = 0;
 static const u64 MS = SYSCLOCK_ARM11 / 1000;
@@ -207,6 +213,10 @@ static void queueAction(int kind, int a, int b, int delayMs)
   actCount++;
 }
 static inline void queueKey(int sym, int scan, int delayMs) { queueAction(0, sym, scan, delayMs); }
+static inline void queueClick(int x, int y, int delayMs) { queueAction(2, x, y, delayMs); }
+// A scripted sequence is queued whole or not at all, so a busy queue never cuts
+// one short (a recast without its final "cast" would leave stray runes behind).
+static inline bool queueHasRoom(int n) { return actCount + n <= (int)(sizeof(actQueue) / sizeof(actQueue[0])); }
 
 static bool touching = false, touchRight = false, touchOnButton = false;
 static int lastSTX = 0, lastSTY = 0;   // where the last tap put the game cursor
@@ -214,8 +224,8 @@ static int lastSTX = 0, lastSTY = 0;   // where the last tap put the game cursor
 static u64 parkCursorAt = 0;   // when to move the arrow out of the way (0 = no)
 static const int PARK_X = 300, PARK_Y = 8;   // empty space right of the 4th portrait
 
-static bool rightClickPending = false;
-static int rightClickX, rightClickY;
+static bool clickPending = false, clickRight = false;
+static int clickX, clickY;
 
 static void runActions(void)
 {
@@ -226,10 +236,11 @@ static void runActions(void)
       lastSTX = PARK_X; lastSTY = PARK_Y;
     }
   }
-  if (rightClickPending) {   // release the right button one poll after pressing it
-    n3ds_send_mouse_button(true, false, rightClickX, rightClickY);
+  if (clickPending) {   // release the button one poll after pressing it
+    n3ds_send_mouse_button(clickRight, false, clickX, clickY);
     n3ds_send_mouse_move(lastSTX, lastSTY);   // put the cursor back where the player left it
-    rightClickPending = false;
+    clickPending = false;
+    return;   // one click per poll: the engine sees press and release separately
   }
   u64 now = svcGetSystemTick();
   while (actCount && actQueue[actHead].dueTicks <= now) {
@@ -237,9 +248,10 @@ static void runActions(void)
     if (a.kind == 0) {
       n3ds_send_key(a.a, a.b);
     } else {
+      clickRight = a.kind == 1;
       n3ds_send_mouse_move(a.a, a.b);
-      n3ds_send_mouse_button(true, true, a.a, a.b);
-      rightClickX = a.a; rightClickY = a.b; rightClickPending = true;
+      n3ds_send_mouse_button(clickRight, true, a.a, a.b);
+      clickX = a.a; clickY = a.b; clickPending = true;
       actHead = (actHead + 1) % 24; actCount--;
       break;   // the release goes out on the next poll
     }
@@ -257,7 +269,7 @@ enum { SC_TAB = 0x2b, SC_SPACE = 0x2c, SC_F1 = 0x3a, SC_1 = 0x1e };
 // nothing, and the follow-up click then lands on that same hand, so nothing stray happens.
 static void quickAttack(int champ, int row)
 {
-  if (champ >= n3ds_engine_party_size()) return;
+  if (champ >= n3ds_engine_party_size() || !queueHasRoom(3)) return;
   int owner = n3ds_engine_attack_menu_owner();   // 0 = no menu, else champion ordinal
   if (owner == champ + 1) {
     queueKey(ATTACK_KEY_SYM[row][champ], ATTACK_KEY_SCAN[row][champ], 0);
@@ -269,23 +281,58 @@ static void quickAttack(int champ, int row)
   DBG("[n3ds] quick attack champ %d row %d (menu owner %d)\n", champ, row, owner);
 }
 
-// Replay the last spell: select the caster's tab (F1..F4), enter the runes (1..6), cast (space).
-static void recastLastSpell(void)
+// Replay a champion's last spell: select their caster tab (F1..F4), remove any runes
+// already typed (the arrow beside the rune line), enter the runes (1..6), cast (space).
+static const int RUNE_DELETE_X = 0x138, RUNE_DELETE_Y = 0x44;   // the panel's back-arrow
+static void recastSpell(int caster)
 {
-  if (lastCaster < 0 || lastCaster >= n3ds_engine_party_size()) return;
-  const signed char *inc = lastSpell[lastCaster];
-  queueKey(0x4000003a + lastCaster, SC_F1 + lastCaster, 0);        // SDLK_F1.. / caster tab
+  if (caster < 0 || caster >= n3ds_engine_party_size() || !lastSpell[caster][0]) return;
+  const signed char *inc = lastSpell[caster];
+  int typed = n3ds_engine_rune_count(caster);
+  if (!queueHasRoom(1 + typed + 4 + 1)) return;
+  queueKey(0x4000003a + caster, SC_F1 + caster, 0);                 // SDLK_F1.. / caster tab
+  for (int k = 0; k < typed; k++) queueClick(RUNE_DELETE_X, RUNE_DELETE_Y, 110);
   for (int i = 0; i < 4 && inc[i]; i++) {
     int button = inc[i] - 96 - 6 * i;                               // see Magic.cpp / CSBCode.cpp
     if (button < 0 || button > 5) break;
     queueKey('1' + button, SC_1 + button, 110);
   }
   queueKey(' ', SC_SPACE, 140);
-  DBG("[n3ds] recast: caster %d\n", lastCaster);
+  DBG("[n3ds] recast: caster %d (cleared %d runes)\n", caster, typed);
 }
+static void recastLastSpell(void) { recastSpell(lastCaster); }
 
 // Right-click in the viewport toggles the leader's inventory (DM's own mouse convention).
 static void toggleLeaderInventory(void) { queueAction(1, 100, 100, 0); }
+
+// STOW (the BAG tab while something is in your hand): open the leader's
+// inventory, drop the item in their first free backpack slot, close it again.
+static void stowHeldItem(void)
+{
+  int leader = n3ds_engine_leader();
+  int slot = leader >= 0 ? n3ds_engine_free_backpack_slot(leader) : -1;
+  int x, y;
+  if (slot < 0 || !n3ds_engine_slot_pos(slot, &x, &y) || !queueHasRoom(3)) {
+    n3ds_note_message(15, "\nNO ROOM IN THE BACKPACK.");
+    return;
+  }
+  queueAction(1, 100, 100, 0);   // open the leader's inventory
+  queueClick(x, y, 160);         // put the item in the free slot
+  queueAction(1, 100, 100, 160); // close it
+  DBG("[n3ds] stow into slot %d at (%d,%d)\n", slot, x, y);
+}
+
+// Eat or drink with a double-tap in the inventory: the first tap picked the item
+// up, so feed it to the mouth, then tap the same slot again, which puts back
+// whatever is left (an empty flask) or does nothing if it was eaten.
+static void eatFromSlot(int x, int y)
+{
+  int mx, my;
+  if (!n3ds_engine_mouth_pos(&mx, &my) || !queueHasRoom(2)) return;
+  queueClick(mx, my, 0);
+  queueClick(x, y, 160);
+  DBG("[n3ds] eat/drink from (%d,%d) via mouth (%d,%d)\n", x, y, mx, my);
+}
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -389,14 +436,14 @@ static void drawMessages(u16 *fb)
 // Message log: every line the game prints (hooked in CSBCode.cpp PrintLines).
 // The game itself shows four lines that fade; the log keeps the last sixteen.
 // ---------------------------------------------------------------------------
-enum { LOG_LINES = 16, LOG_COLS = 49 };
+enum { LOG_LINES = 32, LOG_COLS = 49 };
 static char logText[LOG_LINES][LOG_COLS + 1];
 static u16 logColor[LOG_LINES];
 static int logHead = 0, logCount = 0;
 
 static u16 messageColor(int idx)
 {
-  for (int i = 0; i < 4; i++) if (idx == n3ds_engine_char_color(i)) return CHAMP_COLOR[i];
+  for (int i = 0; i < 4; i++) if (idx == n3ds_engine_char_color(i)) return CHAMP_TEXT[i];
   if (idx == 15) return rgb565(255, 255, 255);
   if (idx == 4)  return rgb565(0, 200, 210);
   return rgb565(200, 200, 200);
@@ -448,7 +495,7 @@ static void drawLog(u16 *fb, int w, int x, int y, int lines, int lineH)
     u16 c = logColor[idx];
     if (shown >= 3) {   // older lines dimmer
       int r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
-      c = (u16)(((r * 5 / 8) << 11) | ((g * 5 / 8) << 5) | (b * 5 / 8));
+      c = (u16)(((r * 3 / 4) << 11) | ((g * 3 / 4) << 5) | (b * 3 / 4));
     }
     drawText(fb, w, x, y + (lines - 1 - shown) * lineH, logText[idx], c);
     shown++;
@@ -602,7 +649,7 @@ static void drawBar(u16 *fb, int x, int y, int w, int h, int cur, int max, u16 c
 static void drawParty(u16 *fb)
 {
   int n = n3ds_engine_party_size();
-  const u16 back = rgb565(36, 36, 40), text = rgb565(225, 220, 205), danger = rgb565(150, 0, 0);
+  const u16 back = rgb565(36, 36, 40), text = rgb565(225, 220, 205);
   if (n == 0) {
     drawText(fb, TOP_W, 4, 8, "NO PARTY YET", text);
     drawText(fb, TOP_W, 4, 22, "TAP A MIRROR", rgb565(150, 145, 130));
@@ -619,15 +666,21 @@ static void drawParty(u16 *fb)
   static const char *const NAMES[3] = { "HP", "STA", "MP" };
   for (int i = 0; i < n && i < 4; i++) {
     int y0 = i * INFO_BLOCK_H + 1;
-    int s[6], e[3];
+    int s[6], e[4];
     n3ds_engine_champion_stats(i, s);
-    n3ds_engine_champion_extra(i, e);   // food, water, poison
+    n3ds_engine_champion_extra(i, e);   // food, water, poison, busy
     bool alive = s[0] > 0;
     if (i > 0) fillRect(fb, TOP_W, 0, y0 - 1, INFO_PARTY_W, 1, rgb565(60, 54, 44));   // divider
-    fillRect(fb, TOP_W, 2, y0, 4, 8, CHAMP_COLOR[i]);
-    drawText(fb, TOP_W, 9, y0, n3ds_engine_champion_name(i), alive ? CHAMP_COLOR[i] : rgb565(110, 100, 100));
-    if (!alive) drawText(fb, TOP_W, INFO_PARTY_W - 40, y0, "DEAD", rgb565(200, 60, 60));
-    else if (e[2]) drawText(fb, TOP_W, INFO_PARTY_W - 56, y0, "POISON", rgb565(60, 220, 60));
+    // The button that attacks with this champion: lit in their colour when the
+    // weapon is ready, grey while it recovers.
+    static const char *const BUTTON[4] = { "A", "B", "X", "Y" };
+    bool ready = alive && !e[3];
+    fillRect(fb, TOP_W, 1, y0 - 1, 10, 10, ready ? CHAMP_COLOR[i] : rgb565(70, 70, 70));
+    drawText(fb, TOP_W, 2, y0, BUTTON[i], ready ? rgb565(0, 0, 0) : rgb565(150, 150, 150));
+    drawText(fb, TOP_W, 14, y0, n3ds_engine_champion_name(i), alive ? CHAMP_TEXT[i] : rgb565(110, 100, 100));
+    if (i == n3ds_engine_leader()) drawText(fb, TOP_W, 76, y0, "LEAD", rgb565(245, 200, 90));
+    if (!alive) drawText(fb, TOP_W, INFO_PARTY_W - 32, y0, "DEAD", rgb565(230, 70, 70));
+    else if (e[2]) drawText(fb, TOP_W, INFO_PARTY_W - 48, y0, "POISON", rgb565(60, 220, 60));
     for (int b = 0; b < 3; b++) {
       int by = y0 + 10 + b * 8, cur = s[b * 2], max = s[b * 2 + 1];
       if (b == 1) { cur /= 10; max /= 10; }   // the game shows stamina divided by ten
@@ -688,7 +741,11 @@ static void drawInfo(u16 *fb, float eye, float slider)
 static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
 {
   memset(fb, 0, TOP_W * TOP_H * 2);
-  if ((layout == LAYOUT_DUNGEON && viewOnBottom) || layout == LAYOUT_INVENTORY) {
+  if (logView) {
+    fillRect(fb, TOP_W, 0, 0, TOP_W, 12, rgb565(70, 52, 30));
+    drawText(fb, TOP_W, 4, 2, "MESSAGES  (RELEASE ZL TO GO BACK)", rgb565(245, 200, 90));
+    drawLog(fb, TOP_W, 4, 16, 22, 10);
+  } else if ((layout == LAYOUT_DUNGEON && viewOnBottom) || layout == LAYOUT_INVENTORY) {
     drawInfo(fb, eye, slider);
   } else if (layout == LAYOUT_DUNGEON) {
     blitViewportStereo(fb, TOP_DUNGEON_VP, eye, slider);
@@ -706,8 +763,8 @@ static const Region *bottomRegions(int *count)
   if (layout == LAYOUT_DUNGEON) {   // pop-ups first: they sit on top of the view
     static Region list[4];
     int n = 0;
-    if (showSpell) list[n++] = POP_SPELL;
     if (fightShown()) list[n++] = POP_FIGHT;
+    else if (showSpell) list[n++] = POP_SPELL;
     list[n++] = BOT_PORTRAITS;
     if (viewOnBottom) list[n++] = BOT_VIEW;
     *count = n;
@@ -718,24 +775,51 @@ static const Region *bottomRegions(int *count)
   return BOT_FULL;
 }
 
+static bool handFull(void) { return layout == LAYOUT_DUNGEON && n3ds_engine_hand_full(); }
+
+// RECAST held: one button per champion with a remembered spell, above the tabs.
+static bool recastHeld = false, recastChooser = false;
+static u64 recastSince = 0;
+static Rect chooserButton(int c) { Rect r = { c * 80 + 1, 168, 78, 38 }; return r; }
+
+static void drawRecastChooser(u16 *fb)
+{
+  fillRect(fb, BOT_W, 0, 164, BOT_W, 46, rgb565(0, 0, 0));
+  for (int c = 0; c < 4; c++) {
+    Rect r = chooserButton(c);
+    bool has = c < n3ds_engine_party_size() && lastSpell[c][0];
+    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, has ? rgb565(52, 44, 36) : rgb565(26, 24, 22));
+    frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, has ? CHAMP_COLOR[c] : rgb565(60, 60, 60));
+    if (c >= n3ds_engine_party_size()) continue;
+    char name[9];
+    strncpy(name, n3ds_engine_champion_name(c), 8); name[8] = 0;
+    drawText(fb, BOT_W, r.x + (r.w - (int)strlen(name) * 8) / 2, r.y + 6, name, has ? CHAMP_TEXT[c] : rgb565(90, 90, 90));
+    for (int k = 0; k < 4 && lastSpell[c][k]; k++)
+      fillRect(fb, BOT_W, r.x + (r.w - 4 * 10) / 2 + k * 10 + 1, r.y + 22, 7, 7, CHAMP_COLOR[c]);
+  }
+}
+
 static void drawTabs(u16 *fb)
 {
   const u16 face = rgb565(52, 44, 36), on = rgb565(110, 84, 40), edge = rgb565(150, 130, 100);
   const u16 text = rgb565(235, 225, 195), dim = rgb565(110, 100, 90);
   bool party = n3ds_engine_party_size() > 0;
   bool haveSpell = lastCaster >= 0 && lastCaster < n3ds_engine_party_size();
+  if (recastChooser) drawRecastChooser(fb);
   for (int i = 0; i < NUM_TABS; i++) {
     Rect r = tabRect(i);
-    bool lit = (i == TAB_FIGHT && fightShown()) || (i == TAB_SPELL && showSpell);
+    bool lit = (i == TAB_FIGHT && fightShown()) || (i == TAB_SPELL && showSpell && !fightShown()) ||
+               (i == TAB_RECAST && recastChooser);
     bool live = i == TAB_SWAP || i == TAB_HELP || (i == TAB_RECAST ? haveSpell : party);
     fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, lit ? on : face);
     frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, edge);
-    int len = (int)strlen(TAB_LABEL[i]);
-    drawText(fb, BOT_W, r.x + (r.w - len * 8) / 2, r.y + 6, TAB_LABEL[i], live ? text : dim);
+    const char *label = (i == TAB_BAG && handFull()) ? "STOW" : TAB_LABEL[i];
+    int len = (int)strlen(label);
+    drawText(fb, BOT_W, r.x + (r.w - len * 8) / 2, r.y + 8, label, live ? text : dim);
     if (i == TAB_RECAST && haveSpell) {   // whose spell, and how many runes
       fillRect(fb, BOT_W, r.x + 2, r.y + 2, r.w - 4, 2, CHAMP_COLOR[lastCaster]);   // caster colour along the top
       for (int k = 0; k < 4 && lastSpell[lastCaster][k]; k++)
-        fillRect(fb, BOT_W, r.x + (r.w - 4 * 8) / 2 + k * 8 + 1, r.y + 17, 5, 4, CHAMP_COLOR[lastCaster]);
+        fillRect(fb, BOT_W, r.x + (r.w - 4 * 8) / 2 + k * 8 + 1, r.y + 20, 5, 4, CHAMP_COLOR[lastCaster]);
     }
   }
 }
@@ -757,7 +841,7 @@ static void drawBottom(u16 *fb)
   for (int i = n - 1; i >= 0; i--) blitRegion(fb, regs[i]);   // back to front
   if (layout == LAYOUT_DUNGEON) {
     if (fightShown()) framePopup(fb, POP_FIGHT);
-    if (showSpell) framePopup(fb, POP_SPELL);
+    else if (showSpell) framePopup(fb, POP_SPELL);
     drawTabs(fb);
   }
   if (dbgEnabled && dbgTX >= 0) {   // debug: magenta crosshair where the last tap landed
@@ -766,6 +850,26 @@ static void drawBottom(u16 *fb)
       if (dbgTY + d >= 0 && dbgTY + d < BOT_H) putpx(fb, dbgTX, dbgTY + d, 0xF81F);
     }
   }
+}
+
+// The portrait strip is drawn 1:1, where the hands are 16 px and the name strip
+// 7 px: stylus targets. Snap a tap anywhere in a champion's 69 px box to the
+// nearest hotspot, so each one is a finger-sized area:
+//   top 9 rows: the name (makes that champion the leader)
+//   below: left hand | right hand | the bars (opens the inventory)
+static void snapPortraitTap(int *stx, int *sty)
+{
+  int champ = *stx / 69;
+  if (champ >= n3ds_engine_party_size() || champ > 3) return;
+  int lx = *stx - champ * 69, base = champ * 69;
+  int hx[2], hy[2];
+  for (int h = 0; h < 2; h++)   // the engine's own hand positions (fallback: DM's layout)
+    if (!n3ds_engine_icon_pos(2 * champ + h, &hx[h], &hy[h])) { hx[h] = base + 4 + 20 * h; hy[h] = 10; }
+  int mid = (hx[0] + hx[1]) / 2 + 8 - base;   // between the two hands
+  if (*sty < 9)                 { *stx = base + 18; *sty = 3; }
+  else if (lx < mid)            { *stx = hx[0] + 8; *sty = hy[0] + 8; }
+  else if (lx < mid + 22)       { *stx = hx[1] + 8; *sty = hy[1] + 8; }
+  else                          { *stx = base + 54; *sty = 16; }
 }
 
 // Bottom-screen pixel -> ST coordinate, through whichever region contains it.
@@ -783,6 +887,7 @@ static bool touchToST(int px, int py, int *stx, int *sty)
     if (px < r.dx || px >= r.dx + r.dw || py < r.dy || py >= r.dy + r.dh) continue;
     *stx = r.sx + (px - r.dx) * r.sw / r.dw;
     *sty = r.sy + (py - r.dy) * r.sh / r.dh;
+    if (r.sy == 0 && r.sh == PORT_H && layout != LAYOUT_FULL) snapPortraitTap(stx, sty);
     return true;
   }
   return false;   // gap between regions: not a click
@@ -801,6 +906,8 @@ static void setupScreens(void)
 // and a frame that arrives too soon is kept pending (never dropped) so the final
 // frame of an animation always reaches the screen; n3ds_poll() flushes it.
 static float lastSlider = -1.0f;
+// The slider reading can flicker between neighbouring values; 32 steps is plenty.
+static inline int sliderStep(float s) { return s < 0 ? -1 : (int)(s * 32.0f + 0.5f); }
 static unsigned lastVitalsHash = 0;
 
 static void flushPresent(bool force)
@@ -812,7 +919,7 @@ static void flushPresent(bool force)
   presentPending = false;
   dbgPresents++;
 
-  float slider = osGet3DSliderState();
+  float slider = sliderStep(osGet3DSliderState()) / 32.0f;
   lastSlider = slider;
   drawTop((u16 *)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL), -1.0f, slider);
   drawTop((u16 *)gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, NULL, NULL), +1.0f, slider);
@@ -903,16 +1010,23 @@ static void pressTab(int i)
   case TAB_FIGHT:
     if (fightShown() && n3ds_engine_attack_menu_owner() != 0) queueKey('\t', SC_TAB, 0);   // close the open menu
     showFight = !fightShown();
+    if (showFight) showSpell = false;   // one pop-up at a time
     break;
-  case TAB_SPELL:  showSpell = !showSpell; break;
-  case TAB_RECAST: recastLastSpell(); break;
-  case TAB_BAG:    toggleLeaderInventory(); break;
+  case TAB_SPELL:
+    if (fightShown()) { if (n3ds_engine_attack_menu_owner() != 0) queueKey('\t', SC_TAB, 0); showFight = false; showSpell = true; }
+    else showSpell = !showSpell;
+    break;
+  case TAB_RECAST: recastHeld = true; recastSince = svcGetSystemTick(); break;   // acts on release
+  case TAB_BAG:    if (handFull()) stowHeldItem(); else toggleLeaderInventory(); break;
   case TAB_SWAP:   viewOnBottom = !viewOnBottom; break;
   case TAB_HELP:   manualRequested = true; break;
   }
   if (i == TAB_SPELL || i == TAB_SWAP || i == TAB_FIGHT) saveSettings();
   presentPending = true;
 }
+
+static int recastTouchX, recastTouchY, lastTapX, lastTapY;
+static u64 lastTapUpTick = 0;
 
 static void handleTouch(u32 held)
 {
@@ -933,12 +1047,22 @@ static void handleTouch(u32 held)
       }
       int x, y;
       if (!touchToST(t.px, t.py, &x, &y)) { touchOnButton = true; return; }   // gap: swallow this touch
+      if (layout == LAYOUT_INVENTORY && !(held & KEY_ZR) && svcGetSystemTick() - lastTapUpTick < 350 * MS &&
+          abs(x - lastTapX) < 8 && abs(y - lastTapY) < 8) {   // double-tap: eat or drink it
+        touchOnButton = true;
+        lastTapUpTick = 0;
+        eatFromSlot(lastTapX, lastTapY);
+        return;
+      }
       touchRight = (held & KEY_ZR) != 0;          // ZR + tap = right mouse button
       DBG("[n3ds] touch DOWN px=(%d,%d) st=(%d,%d) layout=%d right=%d\n",
           t.px, t.py, x, y, (int)layout, touchRight);
       n3ds_send_mouse_move(x, y);
       n3ds_send_mouse_button(touchRight, true, x, y);
       lastSTX = x; lastSTY = y;
+    } else if (recastHeld) {   // RECAST held: after a moment, offer every champion's spell
+      if (!recastChooser && svcGetSystemTick() - recastSince > 300 * MS) { recastChooser = true; presentPending = true; }
+      recastTouchX = t.px; recastTouchY = t.py;
     } else if (!touchOnButton) {
       int x, y;
       if (touchToST(t.px, t.py, &x, &y) && (x != lastSTX || y != lastSTY)) {
@@ -948,7 +1072,15 @@ static void handleTouch(u32 held)
     }
   } else if (touching) {
     touching = false;
+    if (recastHeld) {   // a quick tap recasts the last spell; after a hold, the champion under the finger
+      if (!recastChooser) recastLastSpell();
+      else for (int c = 0; c < 4; c++) if (inRect(chooserButton(c), recastTouchX, recastTouchY)) recastSpell(c);
+      recastHeld = recastChooser = false;
+      presentPending = true;
+      return;
+    }
     if (!touchOnButton) {
+      lastTapUpTick = svcGetSystemTick(); lastTapX = lastSTX; lastTapY = lastSTY;
       DBG("[n3ds] touch UP st=(%d,%d)\n", lastSTX, lastSTY);
       n3ds_send_mouse_button(touchRight, false, lastSTX, lastSTY);
       // The engine draws its own cursor into the picture, so after a tap in the dungeon
@@ -962,11 +1094,22 @@ static void handleTouch(u32 held)
 
 static void showManual(void);
 
+// Buttons still held when a modal (manual, message box) closes must not leak into
+// the game: B that closed the manual would otherwise attack with champion 2.
+static bool armSuppress = false;
+static u32 suppressMask = 0;
+static const u32 GAME_KEYS = KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R | KEY_ZL | KEY_ZR |
+                             KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT | KEY_CPAD_UP | KEY_CPAD_DOWN |
+                             KEY_CPAD_LEFT | KEY_CPAD_RIGHT | KEY_START | KEY_SELECT;
+
 bool n3ds_poll(void)
 {
   if (!aptMainLoop()) return false;
   hidScanInput();
   u32 down = hidKeysDown(), held = hidKeysHeld();
+  if (armSuppress) { suppressMask = held & GAME_KEYS; armSuppress = false; }
+  suppressMask &= held;               // released buttons work again
+  down &= ~suppressMask; held &= ~suppressMask;
   dbgPolls++;
   if (dbgEnabled) {
     static u64 nextBeat = 0;
@@ -991,7 +1134,7 @@ bool n3ds_poll(void)
     if (layout == LAYOUT_FULL) updateFullZoom((held & KEY_ZL) != 0);
   }
 
-  if ((held & KEY_START) && (held & KEY_SELECT)) {
+  if ((held & KEY_START) && (held & KEY_SELECT) && (down & (KEY_START | KEY_SELECT))) {
     if (n3ds_message_box("Quit to the Homebrew Launcher?\nUnsaved progress will be lost.",
                          "Quit", true))
       return false;
@@ -1036,10 +1179,27 @@ bool n3ds_poll(void)
     }
   }
   handleTouch(held);
-  if (manualRequested) { manualRequested = false; showManual(); }
+  if (manualRequested) { manualRequested = false; showManual(); armSuppress = true; }
   runActions();
 
   if (layout == LAYOUT_DUNGEON || layout == LAYOUT_INVENTORY) updateAutomap();
+  {   // the FIGHT pop-up closes by itself once an attack has been chosen
+    static int prevOwner = 0;
+    int owner = layout == LAYOUT_DUNGEON ? n3ds_engine_attack_menu_owner() : 0;
+    if (prevOwner != 0 && owner == 0) { showFight = false; presentPending = true; }
+    if (owner != prevOwner) presentPending = true;
+    prevOwner = owner;
+  }
+  {   // hold ZL on its own for a moment: the whole top screen shows the message log
+      // (the delay keeps it from flashing up during ZL + A/B/X/Y attacks)
+    static u64 zlSince = 0;
+    bool zlAlone = (held & KEY_ZL) && !(held & (KEY_A | KEY_B | KEY_X | KEY_Y));
+    if (!zlAlone) zlSince = 0;
+    else if (!zlSince) zlSince = svcGetSystemTick();
+    bool want = zlAlone && svcGetSystemTick() - zlSince > 300 * MS &&
+                (layout == LAYOUT_INVENTORY || (layout == LAYOUT_DUNGEON && viewOnBottom));
+    if (want != logView) { logView = want; presentPending = true; }
+  }
   if (layout == LAYOUT_DUNGEON || layout == LAYOUT_INVENTORY) {   // vitals and the RECAST button change without engine redraws
     static int lastShownCaster = -2;
     unsigned h = vitalsHash();
@@ -1047,7 +1207,7 @@ bool n3ds_poll(void)
       lastVitalsHash = h; lastShownCaster = lastCaster; presentPending = true;
     }
   }
-  if (osGet3DSliderState() != lastSlider) presentPending = true;
+  if (sliderStep(osGet3DSliderState()) != sliderStep(lastSlider)) presentPending = true;
   if (presentPending) flushPresent(false);
   return true;
 }
@@ -1222,7 +1382,7 @@ static void manDrawTop(u16 *fb)
     fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, rgb565(50, 46, 40));
     fillRect(fb, TOP_W, TOP_W - 5, thumbY, 4, thumbH, gold);
   }
-  drawText(fb, TOP_W, MAN_X, TOP_H - 11, "UP/DOWN SCROLL   L/R SECTION   B CLOSE", dim);
+  drawText(fb, TOP_W, MAN_X, TOP_H - 11, "UP/DOWN SCROLL  L/R SECTION  B/START CLOSE", dim);
 }
 
 static Rect manButton(int i, int count)   // section buttons in two columns, Close last
@@ -1335,7 +1495,7 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
     if (kd & KEY_A) { result = true; break; }
     if (yesno && (kd & KEY_B)) { result = false; break; }
     gfxFlushBuffers();
-    gfxSwapBuffers();
+    gfxScreenSwapBuffers(GFX_BOTTOM, false);   // the top screen keeps the last game frame
     gspWaitForVBlank();
   }
   // Give the bottom screen back to the game.
@@ -1343,6 +1503,7 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
   setupScreens();
   n3ds_force_redraw();
   presentPending = true;
+  armSuppress = true;
   return result;
 }
 
@@ -1353,6 +1514,45 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
 // before every read, which discards stdio's buffer; on the SD card each of those
 // became a separate slow access and the first dungeon load took about a minute.
 // Read-only files are read in one go and served from memory instead.
+// The auto-map follows your saves (hooked in SaveGame.cpp): saving a game writes
+// <save>.map beside it, loading a save reads it back, and a new game starts blank.
+static const char MAP_MAGIC[8] = { 'C', 'S', 'B', '3', 'M', 'A', 'P', '1' };
+
+void n3ds_automap_saved(const char *saveName, const char *backupName)
+{
+  if (!saveName) return;
+  char path[PATH_MAX];
+  snprintf(path, sizeof path, "%s.map", saveName);
+  if (backupName) {   // the engine just renamed the old save to its .BAK; keep the pair together
+    char bak[PATH_MAX];
+    snprintf(bak, sizeof bak, "%s.map", backupName);
+    remove(bak);
+    rename(path, bak);
+  }
+  FILE *f = fopen(path, "wb");
+  if (!f) return;
+  fwrite(MAP_MAGIC, 1, sizeof MAP_MAGIC, f);
+  fwrite(seen, 1, sizeof seen, f);
+  fclose(f);
+  DBG("[n3ds] auto-map saved to %s\n", path);
+}
+
+void n3ds_automap_loaded(const char *saveName)   // NULL = new game
+{
+  memset(seen, 0, sizeof seen);
+  lastMapPos[0] = -1;
+  if (!saveName) return;
+  char path[PATH_MAX], magic[8];
+  snprintf(path, sizeof path, "%s.map", saveName);
+  FILE *f = fopen(path, "rb");
+  if (!f) return;   // a save from before maps were kept: start blank
+  if (fread(magic, 1, sizeof magic, f) != sizeof magic || memcmp(magic, MAP_MAGIC, sizeof magic) != 0 ||
+      fread(seen, 1, sizeof seen, f) != sizeof seen)
+    memset(seen, 0, sizeof seen);
+  fclose(f);
+  DBG("[n3ds] auto-map loaded from %s\n", path);
+}
+
 extern "C" FILE *fmemopen(void *buf, size_t size, const char *mode);
 FILE *n3ds_fopen(const char *name, const char *flags)
 {

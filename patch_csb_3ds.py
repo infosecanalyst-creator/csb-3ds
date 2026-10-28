@@ -165,10 +165,46 @@ bool n3ds_engine_button_bounds(int *x0, int *y0, int *x1, int *y1)
   *x0 = ax; *y0 = ay; *x1 = bx; *y1 = by;
   return true;
 }
-void n3ds_engine_champion_extra(int i, int out[3])
+void n3ds_engine_champion_extra(int i, int out[4])
 {
   out[0] = d.hero[i].food; out[1] = d.hero[i].water; out[2] = d.hero[i].poisonCount;
+  out[3] = d.hero[i].busyTimer != -1;   // weapon still recovering
 }
+int n3ds_engine_leader(void) { return d.HandChar; }
+int n3ds_engine_rune_count(int i)
+{
+  int n = 0;
+  while (n < 4 && d.hero[i & 3].incantation[n] != 0) n++;
+  return n;
+}
+bool n3ds_engine_icon_pos(int square, int *x, int *y)
+{
+  if (square < 0 || square >= 46) return false;
+  *x = d.IconDisplay[square].pixelX;
+  *y = d.IconDisplay[square].pixelY;
+  if (square >= 8) *y += 33;   // inventory squares are relative to the viewport
+  return *x >= 0 && *x < 320 && *y >= 0 && *y < 200;
+}
+int n3ds_engine_free_backpack_slot(int i)
+{
+  if (i < 0 || i >= d.NumCharacter || i > 3) return -1;
+  for (int s = 13; s < 30; s++) if (d.hero[i].Possession(s) == RNnul) return s;
+  return -1;
+}
+bool n3ds_engine_slot_pos(int slot, int *x, int *y)
+{
+  if (!n3ds_engine_icon_pos(slot + 8, x, y)) return false;
+  *x += 8; *y += 8;
+  return true;
+}
+bool n3ds_engine_mouth_pos(int *x, int *y)
+{
+  RectPos *r = (RectPos *)d.Word1398;   // the box around the mouth, viewport-relative
+  *x = (r->w.x1 + r->w.x2) / 2;
+  *y = (r->w.y1 + r->w.y2) / 2 + 33;
+  return *x > 0 && *x < 224 && *y > 33 && *y < 169;
+}
+bool n3ds_engine_hand_full(void) { return d.objectInHand != RNnul; }
 const char *n3ds_engine_champion_name(int i)
 {
   static char names[4][9];
@@ -336,6 +372,25 @@ def patch_csbcode(t):
                 "#ifdef __3DS__\n  n3ds_note_message(color, Text);\n#endif\n")
 
 
+def patch_savegame(t):
+    # The auto-map is saved beside each saved game and restored when it is loaded.
+    t = edit(t, "SaveGame include", '#include "stdafx.h"\n',
+             '#include "stdafx.h"\n#ifdef __3DS__\n#include "n3ds_platform.h"\n#endif\n')
+    t = edit(t, "SaveGame new game map",
+             '  d.datafileHandle = OPEN(dungeonName,"rb");\n',
+             '  d.datafileHandle = OPEN(dungeonName,"rb");\n'
+             '#ifdef __3DS__\n  if (d.datafileHandle >= 0) n3ds_automap_loaded(NULL);\n#endif\n')
+    t = edit(t, "SaveGame load map",
+             '  D0W = OPEN(d.SaveGameFilename,"rb");\n',
+             '#ifdef __3DS__\n  n3ds_automap_loaded(NULL);   /* blank unless the save has a map */\n#endif\n'
+             '  D0W = OPEN(d.SaveGameFilename,"rb");\n'
+             '#ifdef __3DS__\n  if (D0W >= 0) n3ds_automap_loaded(d.SaveGameFilename);\n#endif\n')
+    return edit(t, "SaveGame save map",
+                '  if (d.datafileHandle >= 0)\n  {\n',
+                '  if (d.datafileHandle >= 0)\n  {\n'
+                '#ifdef __3DS__\n    n3ds_automap_saved(d.SaveGameFilename, (const char *)d.Pointer22980);\n#endif\n')
+
+
 def patch_hint(t):
     for name, d in (("S20", S20_DEF), ("TEXT", TEXT_DEF), ("CLICKMAP", CLICKMAP_DEF)):
         t = edit(t, f"Hint {name} alignment", d, PACK_OPEN + d + PACK_CLOSE)
@@ -352,6 +407,7 @@ PATCHES = {
     "SoundMixer.cpp": patch_soundmixer,
     "CSBUI.cpp": patch_csbui,
     "CSBCode.cpp": patch_csbcode,
+    "SaveGame.cpp": patch_savegame,
 }
 
 

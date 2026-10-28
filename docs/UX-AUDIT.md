@@ -46,6 +46,11 @@ saving, sleeping or recruiting champions.
 | 22 | Messages | 4 lines that fade | 16-line log on the top screen | Modern RPG combat logs |
 | 23 | Movement arrows, spell and attack panels | always on screen | arrows removed (D-pad); runes and attack menu pop up on demand | Fewer, bigger targets |
 | 24 | Help | README on a PC only | instruction manual in the game (HELP tab, SELECT on menus); top screen reads, touch screen picks sections | SimGolf 3DS port; DS manuals in-game |
+| 25 | Recast another champion's spell | only the most recent spell | hold RECAST, slide to the champion | |
+| 26 | Eat / drink | open bag, pick up, tap mouth, put flask back (4-5) | open bag, double-tap (3 with closing) | Grimrock |
+| 27 | Stow a picked-up item | open bag, tap slot, close (3+) | STOW (1) | |
+| 28 | Portrait hands / leader | 16 px and 7 px targets | whole 69 px box split into name, hands, bars | Touch HIG |
+| 29 | Modal close leaking input | B closing the manual attacked with champion 2 | buttons held through a modal are ignored until released | QA |
 | 15 | Frame cost | divisions and float math per pixel | lookup tables; same pixels, about 3.3x faster to draw | |
 
 Typical fight, four champions, two rounds:
