@@ -16,8 +16,8 @@ CXX       := $(PREFIX)g++
 PKGCONFIG := $(PORTLIBS)/bin/arm-none-eabi-pkg-config
 
 TARGET    := csb3ds
-APP_TITLE := Dungeon Master
-APP_DESC  := DM1 / Chaos Strikes Back (CSBwin)
+APP_TITLE := csb-3ds
+APP_DESC  := CSBwin dungeon engine for 3DS
 APP_AUTH  := csb-3ds
 ICON      := $(if $(wildcard icon.png),icon.png,$(CTRULIB)/default_icon.png)
 

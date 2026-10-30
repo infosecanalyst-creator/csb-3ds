@@ -1,4 +1,4 @@
-# csb-3ds — Dungeon Master & Chaos Strikes Back on the New 3DS
+# csb-3ds — a New 3DS front end for CSBwin (plays your own Dungeon Master / Chaos Strikes Back files)
 
 A 3DS front end for **CSBwin**, Paul R. Stevens' faithful re-implementation of the
 Dungeon Master / Chaos Strikes Back engine (SDL2 branch maintained at
@@ -67,9 +67,11 @@ counts: [docs/UX-AUDIT.md](docs/UX-AUDIT.md).
 2. On the SD card create `3ds/csb3ds/` and copy in:
    - `csb3ds.3dsx` and `csb.cfg` from `out/`
    - `GRAPHICS.DAT` and `DUNGEON.DAT` for the game you want to play
-3. Launch **Dungeon Master** from the Homebrew Launcher.
+3. Launch **csb-3ds** from the Homebrew Launcher.
 
-**Game data.** No original game data is included. You need GRAPHICS.DAT and DUNGEON.DAT from a copy of the game you own.
+**Game data.** No original game data is included, and this project does not tell you
+where to get it. You need `GRAPHICS.DAT` and `DUNGEON.DAT` from a copy of the game you
+own.
 
 **Switching games.** CSBwin plays DM1, Chaos Strikes Back and fan dungeons (e.g. Conflux)
 from the same executable. Put each game's files under its own name and point
@@ -134,14 +136,22 @@ with a finger once champions are recruited.
 | `patch_csb_3ds.py` | Anchored edits to the CSBwin sources (all behind `#ifdef __3DS__`) |
 | `Makefile.3ds` | devkitARM build producing `csb3ds.3dsx` |
 | `build.sh` / `build-windows.ps1` | One-command Docker build |
-| `csb.cfg` | Upstream config with the TrueType overlay off and native window size |
 
 ## Licence
 
 The files in this repository (the 3DS layer, patch script and build scripts) are MIT
-licensed; see `LICENSE`. They contain no CSBwin source: the build clones CSBwin at a
-pinned commit and patches it locally.
+licensed; see `LICENSE`. CSBwin itself is not part of this repository: the build clones it at a pinned
+commit and patches it locally (the patch script quotes short anchor lines from CSBwin
+only to find where each edit goes). `out/csb.cfg` is generated from CSBwin's own config
+at build time.
+
+CSBwin's source has no stated licence, so do not publish built `.3dsx` files; share the
+source and let people build it.
 
 CSBwin is (c) Paul R. Stevens and contributors (Linux/SDL2 maintenance by Emmanuel Anne,
 github.com/zelurker/CSB). Dungeon Master and Chaos Strikes Back are (c) FTL Games /
 Software Heaven. No game data is included or distributed.
+
+This project is not affiliated with or endorsed by FTL Games, Software Heaven, Paul R.
+Stevens or Nintendo. *Dungeon Master* and *Chaos Strikes Back* are trademarks of their
+respective owners and are used here only to say which game files the engine reads.

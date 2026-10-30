@@ -41,4 +41,4 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Build failed - copy the output above into
 
 Write-Host ""
 Write-Host "Built: $PWD\out\csb3ds.3dsx" -ForegroundColor Green
-Write-Host "Copy out\csb3ds.3dsx and out\csb.cfg to SD:\3ds\csb3ds\ along with GRAPHICS.DAT and DUNGEON.DAT"
+Write-Host "Copy out\csb3ds.3dsx and out\csb.cfg to SD:\3ds\csb3ds\ along with GRAPHICS.DAT and DUNGEON.DAT from your own copy"

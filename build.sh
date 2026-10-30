@@ -65,7 +65,13 @@ make -C "$WORK/CSB/src" -f Makefile.3ds -j"$(nproc)" SDL_CFLAGS="$SDL_CFLAGS" SD
 
 mkdir -p "$HERE/out"
 cp "$WORK/CSB/src/csb3ds.3dsx" "$HERE/out/"
-cp "$HERE/csb.cfg" "$HERE/out/"
+# csb.cfg: CSBwin's own config with the TrueType message overlay off (the 3DS build draws
+# the original message area) and the window at the native 320x200. Keep its [keys] section:
+# the 3DS buttons are mapped onto those scancodes.
+sed -e 's/^width = .*/width = 320/' -e 's/^height = .*/height = 200/' \
+    -e 's/^winx = .*/winx = 320/' -e 's/^winy = .*/winy = 200/' \
+    -e 's/^experimental_overlay = .*/experimental_overlay = 0/' \
+    "$WORK/CSB/csb.cfg" > "$HERE/out/csb.cfg"
 echo
 echo "Done: out/csb3ds.3dsx and out/csb.cfg"
 echo "Copy both (plus GRAPHICS.DAT and DUNGEON.DAT) to SD:/3ds/csb3ds/"
