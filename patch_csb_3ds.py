@@ -274,6 +274,14 @@ def patch_lincsbui(t):
 
 
 def patch_soundmixer(t):
+    # A very quiet click for the 3DS touch buttons, mixed in after the game's sounds.
+    t = edit(t, "SoundMixer include", '#include "Data.h"\n',
+             '#include "Data.h"\n#ifdef __3DS__\n#include "n3ds_platform.h"\n#endif\n')
+    t = edit(t, "SoundMixer click mix",
+             '    if (!mixed)\n\tmemset(stream, mixer.silence, len);\n}\n',
+             '    if (!mixed)\n\tmemset(stream, mixer.silence, len);\n'
+             '#ifdef __3DS__\n    if (mixer.format == AUDIO_S16LSB)\n'
+             '\tn3ds_mix_click((short *)stream, len / 2 / (mixer.channels ? mixer.channels : 1), mixer.channels, mixer.freq);\n#endif\n}\n')
     t = edit(t, "SoundMixer open error detail",
              '\tprintf("Audio: opening device failed!\\n");\n',
              '\tprintf("Audio: opening device failed! (%s)\\n", SDL_GetError());\n')

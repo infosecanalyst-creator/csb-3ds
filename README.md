@@ -95,10 +95,14 @@ failed instead of producing a half-patched tree. Every change is behind `#ifdef 
 ## Instruction manual
 
 The manual is built into the game: the **HELP** tab in the dungeon, or **SELECT** on the
-menus and the entrance. The section text is on the top screen (Circle Pad or D-pad to
-scroll, L / R for the previous or next section); the touch screen has a big button per
-section and Close (B or START also close). The game waits while it is open, and the
-manual reopens where you left it.
+menus and the entrance. The section text is on the top screen; the touch screen has a big
+button per section and CLOSE. Controls are the same as in the other 3DS ports: Circle Pad
+or C-Stick scroll (hold to keep scrolling), the D-pad moves between the section buttons,
+L / R go to the previous or next section, tap a section, B or START closes. The game waits
+while it is open, and the manual reopens where you left it.
+
+Touch buttons (the tabs, the manual's buttons, the RECAST chooser) give a very quiet click
+and a visible press.
 
 Its text is `n3ds/manual.txt`, compiled in by `tools/embed_manual.py`. A `manual.txt` in
 `sdmc:/3ds/csb3ds/` replaces it without a rebuild.

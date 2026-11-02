@@ -65,6 +65,9 @@ int  n3ds_engine_cell(int level, int x, int y);   // CELLFLAG (type in bits 5-7)
 // Called from the patched CSBCode.cpp for every message the game prints (log).
 void n3ds_note_message(int color, const char *text);
 
+// Called from the patched SoundMixer.cpp audio callback: mixes the touch-button click.
+void n3ds_mix_click(short *stream, int frames, int channels, int freq);
+
 // Called from the patched SaveGame.cpp: the auto-map is kept beside each save.
 void n3ds_automap_saved(const char *saveName, const char *backupName);
 void n3ds_automap_loaded(const char *saveName);   // NULL = new game

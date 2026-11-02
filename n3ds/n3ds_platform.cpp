@@ -80,6 +80,7 @@ enum { TAB_Y = 210, TAB_H = 30, NUM_TABS = 6, TAB_W = BOT_W / NUM_TABS };
 enum { TAB_FIGHT, TAB_SPELL, TAB_RECAST, TAB_BAG, TAB_SWAP, TAB_HELP };
 static const char *const TAB_LABEL[NUM_TABS] = { "FIGHT", "SPELL", "RECAST", "BAG", "SWAP", "HELP" };
 static bool manualRequested = false;   // opened from n3ds_poll, outside the touch handler
+static int pressedTab = -1;            // drawn pressed while the finger is on it
 static inline Rect tabRect(int i) { Rect r = { i * TAB_W, TAB_Y, TAB_W - 2, TAB_H }; return r; }
 // With SWAP, the big view goes back to the top screen (with 3D depth) and the
 // auto-map takes its place on the bottom.
@@ -175,6 +176,31 @@ static int drawText(u16 *fb, int w, int x, int y, const char *s, u16 c, int scal
         }
   }
   return x;
+}
+
+// ---------------------------------------------------------------------------
+// Touch-button click: a very quiet, short tick mixed into the game's own audio
+// (the patched SoundMixer.cpp calls n3ds_mix_click from its SDL audio callback).
+// ---------------------------------------------------------------------------
+static volatile int clickSamplesLeft = 0;   // set by the game thread, consumed by the audio thread
+enum { CLICK_MS = 6, CLICK_PEAK = 900 };     // about -31 dB: just audible
+static void playClick(void) { clickSamplesLeft = -1; }   // the mixer converts -1 into a fresh click
+void n3ds_mix_click(short *stream, int frames, int channels, int freq)
+{
+  int left = clickSamplesLeft;
+  if (left == 0 || channels < 1 || freq <= 0) return;
+  int total = freq * CLICK_MS / 1000;
+  if (left < 0) left = total;
+  for (int i = 0; i < frames && left > 0; i++, left--) {
+    int pos = total - left;                      // 0 .. total-1
+    int env = CLICK_PEAK * left / total;         // linear decay
+    int s = ((pos / (freq / 2000 + 1)) & 1) ? env : -env;   // ~1 kHz square burst
+    for (int c = 0; c < channels; c++) {
+      int v = stream[i * channels + c] + s;
+      stream[i * channels + c] = (short)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
+    }
+  }
+  clickSamplesLeft = left;
 }
 
 // ---------------------------------------------------------------------------
@@ -815,11 +841,13 @@ static void drawTabs(u16 *fb)
     bool lit = (i == TAB_FIGHT && fightShown()) || (i == TAB_SPELL && showSpell && !fightShown()) ||
                (i == TAB_RECAST && recastChooser);
     bool live = i == TAB_SWAP || i == TAB_HELP || (i == TAB_RECAST ? haveSpell : party);
-    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, lit ? on : face);
-    frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, edge);
+    bool down = i == pressedTab;    // pressed: darker, sunk by a pixel, light edge on the bottom
+    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, down ? rgb565(30, 25, 20) : lit ? on : face);
+    frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, down ? rgb565(90, 78, 60) : edge);
+    if (down) fillRect(fb, BOT_W, r.x + 1, r.y + r.h - 2, r.w - 2, 1, edge);
     const char *label = (i == TAB_BAG && handFull()) ? "STOW" : TAB_LABEL[i];
     int len = (int)strlen(label);
-    drawText(fb, BOT_W, r.x + (r.w - len * 8) / 2, r.y + 8, label, live ? text : dim);
+    drawText(fb, BOT_W, r.x + (r.w - len * 8) / 2, r.y + 8 + (down ? 1 : 0), label, live ? text : dim);
     if (i == TAB_RECAST && haveSpell) {   // whose spell, and how many runes
       fillRect(fb, BOT_W, r.x + 2, r.y + 2, r.w - 4, 2, CHAMP_COLOR[lastCaster]);   // caster colour along the top
       for (int k = 0; k < 4 && lastSpell[lastCaster][k]; k++)
@@ -1031,6 +1059,8 @@ static void saveSettings(void);
 static void pressTab(int i)
 {
   DBG("[n3ds] tab %s\n", TAB_LABEL[i]);
+  playClick();
+  pressedTab = i;
   switch (i) {
   case TAB_FIGHT:
     if (fightShown() && n3ds_engine_attack_menu_owner() != 0) queueKey('\t', SC_TAB, 0);   // close the open menu
@@ -1097,9 +1127,10 @@ static void handleTouch(u32 held)
     }
   } else if (touching) {
     touching = false;
+    if (pressedTab >= 0) { pressedTab = -1; presentPending = true; }
     if (recastHeld) {   // a quick tap recasts the last spell; after a hold, the champion under the finger
       if (!recastChooser) recastLastSpell();
-      else for (int c = 0; c < 4; c++) if (inRect(chooserButton(c), recastTouchX, recastTouchY)) recastSpell(c);
+      else for (int c = 0; c < 4; c++) if (inRect(chooserButton(c), recastTouchX, recastTouchY)) { playClick(); recastSpell(c); }
       recastHeld = recastChooser = false;
       presentPending = topDirty = true;
       return;
@@ -1407,7 +1438,7 @@ static void manDrawTop(u16 *fb)
     fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, rgb565(50, 46, 40));
     fillRect(fb, TOP_W, TOP_W - 5, thumbY, 4, thumbH, gold);
   }
-  drawText(fb, TOP_W, MAN_X, TOP_H - 11, "UP/DOWN SCROLL  L/R SECTION  B/START CLOSE", dim);
+  drawText(fb, TOP_W, MAN_X, TOP_H - 11, "STICKS SCROLL  D-PAD PICK  L/R  B CLOSE", dim);
 }
 
 static Rect manButton(int i, int count)   // section buttons in two columns, Close last
@@ -1418,17 +1449,27 @@ static Rect manButton(int i, int count)   // section buttons in two columns, Clo
   return r;
 }
 
+static int manFocus = 0;      // D-pad focus: a section button, or Close (= manSecCount)
+static int manPressed = -1;   // button under the finger, drawn pressed
+
 static void manDrawBottom(u16 *fb)
 {
   const u16 face = rgb565(52, 44, 36), on = rgb565(120, 90, 40), edge = rgb565(150, 130, 100);
-  const u16 text = rgb565(235, 225, 195);
+  const u16 text = rgb565(235, 225, 195), focusC = rgb565(250, 215, 110);
   fillRect(fb, BOT_W, 0, 0, BOT_W, BOT_H, rgb565(10, 10, 12));
   int count = manSecCount + 1;
   for (int i = 0; i < count; i++) {
     Rect r = manButton(i, count);
-    bool close = i == manSecCount;
-    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, close ? rgb565(120, 30, 24) : (i == manSection ? on : face));
+    bool close = i == manSecCount, down = i == manPressed;
+    u16 fill = close ? rgb565(120, 30, 24) : (i == manSection ? on : face);
+    if (down) fill = close ? rgb565(70, 16, 12) : rgb565(30, 25, 20);
+    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, fill);
     frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, close ? rgb565(220, 90, 70) : edge);
+    if (i == manFocus) {   // D-pad focus ring
+      frameRect(fb, BOT_W, r.x - 2, r.y - 2, r.w + 4, r.h + 4, focusC);
+      frameRect(fb, BOT_W, r.x - 1, r.y - 1, r.w + 2, r.h + 2, focusC);
+    }
+    if (down) r.y++;
     char label[24];
     if (close) strcpy(label, "CLOSE");
     else {
@@ -1450,40 +1491,56 @@ static void manPresent(void)
   gspWaitForVBlank();
 }
 
+// Controls (the same in every one of these 3DS ports):
+//   Circle Pad / C-Stick: scroll the text (hold to keep scrolling)
+//   D-pad: move between the section buttons (a section opens as it is picked;
+//          on CLOSE, A closes)       L / R: previous / next section
+//   tap a section button, or CLOSE   B or START: close
 static void showManual(void)
 {
   manualLoad();
   if (manSecCount == 0) return;
   if (manSection >= manSecCount) manSection = 0;
+  manFocus = manSection;
   manLayout(manSection);
   if (manScroll > manLineCount - MAN_VISIBLE) manScroll = manLineCount > MAN_VISIBLE ? manLineCount - MAN_VISIBLE : 0;
   DBG("[n3ds] manual open: section %d\n", manSection);
   bool waitRelease = true;   // the tap that opened the manual is still down
   int repeat = 0;
+  const int count = manSecCount + 1;
+  const u32 SCROLL_DOWN = KEY_CPAD_DOWN | KEY_CSTICK_DOWN, SCROLL_UP = KEY_CPAD_UP | KEY_CSTICK_UP;
   while (aptMainLoop()) {
     hidScanInput();
     u32 kd = hidKeysDown(), kh = hidKeysHeld();
-    if (kd & (KEY_B | KEY_START)) break;
-    int sec = manSection;
-    if (kd & KEY_R) sec = (manSection + 1) % manSecCount;
-    if (kd & KEY_L) sec = (manSection + manSecCount - 1) % manSecCount;
+    if (kd & (KEY_B | KEY_START)) { playClick(); break; }
+    if ((kd & KEY_A) && manFocus == manSecCount) { playClick(); break; }
+    int sec = manSection, focus = manFocus;
+    if (kd & KEY_R) focus = sec = (manSection + 1) % manSecCount;
+    if (kd & KEY_L) focus = sec = (manSection + manSecCount - 1) % manSecCount;
+    if (kd & KEY_DRIGHT && (focus % 2) == 0 && focus + 1 < count) focus++;
+    if (kd & KEY_DLEFT && (focus % 2) == 1) focus--;
+    if (kd & KEY_DDOWN && focus + 2 < count) focus += 2;
+    else if (kd & KEY_DDOWN && focus + 1 < count && (focus % 2) == 0) focus++;   // odd count: last row
+    if (kd & KEY_DUP && focus - 2 >= 0) focus -= 2;
+    if (focus != manFocus) { manFocus = focus; playClick(); if (focus < manSecCount) sec = focus; }
     if (kh & KEY_TOUCH) {
-      if (!waitRelease) {
-        touchPosition t;
-        hidTouchRead(&t);
-        int count = manSecCount + 1, hit = -1;
-        for (int i = 0; i < count; i++) if (inRect(manButton(i, count), t.px, t.py)) hit = i;
-        if (hit == manSecCount) break;   // Close
-        if (hit >= 0) sec = hit;
-        waitRelease = true;
-      }
-    } else waitRelease = false;
-    if (sec != manSection) { manSection = sec; manScroll = 0; manLayout(sec); }
-    int dir = 0;
-    if (kh & (KEY_DDOWN | KEY_CPAD_DOWN)) dir = 1;
-    if (kh & (KEY_DUP | KEY_CPAD_UP)) dir = -1;
+      touchPosition t;
+      hidTouchRead(&t);
+      int hit = -1;
+      for (int i = 0; i < count; i++) if (inRect(manButton(i, count), t.px, t.py)) hit = i;
+      if (!waitRelease && hit >= 0) { playClick(); manFocus = hit; waitRelease = true; }
+      manPressed = waitRelease ? (hit == manFocus ? hit : -1) : -1;
+    } else {
+      if (manPressed == manSecCount) { manPressed = -1; break; }   // CLOSE acts on release
+      if (manPressed >= 0) sec = manPressed;
+      manPressed = -1;
+      waitRelease = false;
+    }
+    if (manPressed >= 0 && manPressed < manSecCount) sec = manPressed;
+    if (sec != manSection) { manSection = sec; manScroll = 0; manLayout(sec); if (manFocus != manSecCount) manFocus = sec; }
+    int dir = (kh & SCROLL_DOWN) ? 1 : (kh & SCROLL_UP) ? -1 : 0;
     if (dir) {
-      if ((kd & (KEY_DDOWN | KEY_CPAD_DOWN | KEY_DUP | KEY_CPAD_UP)) || ++repeat >= 3) {   // first press, then every 3 frames
+      if ((kd & (SCROLL_DOWN | SCROLL_UP)) || ++repeat >= 2) {   // first push, then every other frame
         repeat = 0;
         manScroll += dir;
         int maxScroll = manLineCount > MAN_VISIBLE ? manLineCount - MAN_VISIBLE : 0;
@@ -1493,6 +1550,7 @@ static void showManual(void)
     } else repeat = 0;
     manPresent();
   }
+  manPressed = -1;
   while (aptMainLoop()) {   // let go of the screen before the game sees touches again
     hidScanInput();
     if (!(hidKeysHeld() & KEY_TOUCH)) break;
