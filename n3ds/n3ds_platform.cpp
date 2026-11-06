@@ -86,7 +86,7 @@ static inline Rect tabRect(int i) { Rect r = { i * TAB_W, TAB_Y, TAB_W - 2, TAB_
 // auto-map takes its place on the bottom.
 static const Rect MAP_ON_BOTTOM = { 0, 34, BOT_W, 178 };
 static bool viewOnBottom = true, showFight = false, showSpell = false;
-static bool logView = false;   // ZL held: the top screen shows the whole message log
+static bool logView = false;   // ZR held: the top screen shows the whole message log
 // Inventory: portraits 1:1 + the inventory panel at 1.4x, so slots are finger-sized.
 static const Region BOT_INVENTORY[] = {
   { 0,    0,    ST_W, PORT_H, 0, 0,  320, PORT_H },
@@ -1187,7 +1187,7 @@ bool n3ds_poll(void)
       layout = want;
       presentPending = topDirty = true;
     }
-    if (layout == LAYOUT_FULL) updateFullZoom((held & KEY_ZL) != 0);
+    if (layout == LAYOUT_FULL) updateFullZoom((held & KEY_ZR) != 0);
   }
 
   if ((held & KEY_START) && (held & KEY_SELECT) && (down & (KEY_START | KEY_SELECT))) {
@@ -1203,15 +1203,21 @@ bool n3ds_poll(void)
     toggleLeaderInventory();                                                      // SELECT: bag
   if ((down & KEY_SELECT) && !(held & KEY_START) && layout == LAYOUT_FULL && !touching)
     manualRequested = true;                                                       // SELECT on menus: manual
+  // ZL swaps the big view between the screens (the SWAP tab), in the dungeon.
+  if ((down & KEY_ZL) && layout == LAYOUT_DUNGEON) {
+    viewOnBottom = !viewOnBottom;
+    saveSettings();
+    presentPending = topDirty = true;
+  }
   // Champion attacks: A/B/X/Y = champion 1/2/3/4, one press per attack.
-  // Plain = first attack, with ZL = second, with ZR = third (the attack menu's three rows).
+  // Plain = first attack, with ZR = second (the third is on the FIGHT panel).
   // Holding the button keeps attacking: the attack is re-issued every 0.6 s, and
   // the engine itself ignores it until the champion's weapon has recovered.
   static u64 nextAutoAttack[4];
   if (layout == LAYOUT_DUNGEON) {
     u64 t = svcGetSystemTick();
     for (int c = 0; c < 4; c++) {
-      int row = (held & KEY_ZL) ? 1 : (held & KEY_ZR) ? 2 : 0;
+      int row = (held & KEY_ZR) ? 1 : 0;
       if (down & FACE_BUTTON[c]) {
         quickAttack(c, row);
         nextAutoAttack[c] = t + 600 * MS;
@@ -1246,10 +1252,10 @@ bool n3ds_poll(void)
     if (owner != prevOwner) presentPending = topDirty = true;
     prevOwner = owner;
   }
-  {   // hold ZL on its own for a moment: the whole top screen shows the message log
-      // (the delay keeps it from flashing up during ZL + A/B/X/Y attacks)
+  {   // hold ZR on its own for a moment: the whole top screen shows the message log
+      // (the delay keeps it from flashing up during ZR + A/B/X/Y attacks)
     static u64 zlSince = 0;
-    bool zlAlone = (held & KEY_ZL) && !(held & (KEY_A | KEY_B | KEY_X | KEY_Y));
+    bool zlAlone = (held & KEY_ZR) && !(held & (KEY_A | KEY_B | KEY_X | KEY_Y | KEY_TOUCH));
     if (!zlAlone) zlSince = 0;
     else if (!zlSince) zlSince = svcGetSystemTick();
     bool want = zlAlone && svcGetSystemTick() - zlSince > 300 * MS &&

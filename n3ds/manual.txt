@@ -40,27 +40,27 @@ The touch screen is where you play. Use the stylus like a mouse; a finger works 
 | SPELL | Rune panel for casting.
 | RECAST | Casts the last spell again. Hold it to pick any champion's last spell.
 | BAG | The leader's inventory. With an item in hand it reads STOW and puts the item in the leader's backpack.
-| SWAP | Moves the big view to the top screen (look only: tap SWAP again to touch the dungeon).
+| SWAP | Moves the big view to the top screen (look only: tap SWAP again, or press ZL, to touch the dungeon).
 | HELP | This manual.
 
 ## Top screen: information
 - Party: each champion's button (A, B, X or Y; lit when their weapon is ready, grey while it recovers), name, LEAD for the leader, HP, STA and MP with current/max (stamina is shown divided by ten, as in the game), FOOD and WATER, and POISON or DEAD.
 - Map: every square you have seen.
 - LIGHT: how bright your torches and spells keep the dungeon.
-- Messages: the last lines the game printed. Hold ZL to see the whole log.
+- Messages: the last lines the game printed. Hold ZR to see the whole log.
 
 ## SWAP
-SWAP puts the dungeon view full-size on the top screen, with 3D depth from the 3D slider, and moves the map to the bottom. The top screen can't be touched, so to pick things up or press buttons, tap SWAP again. The game remembers your choice.
+SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top screen, with 3D depth from the 3D slider, and moves the map to the bottom. The top screen can't be touched, so to pick things up or press buttons, tap SWAP again or press ZL. The game remembers your choice.
 
 # Controls
 | D-pad | Step forward or back, turn left or right
 | Circle Pad | Same as the D-pad
 | L / R | Step sideways
 | A B X Y | Attack with champion 1 2 3 4 (left to right on the portraits; hold to keep attacking)
-| ZL + A B X Y | That champion's second attack
-| ZR + A B X Y | That champion's third attack
+| ZR + A B X Y | That champion's second attack (the third is on the FIGHT panel)
 | ZR + tap | Right click
-| ZL (hold) | Show the whole message log
+| ZR (hold) | Show the whole message log
+| ZL | Swap the screens (dungeon)
 | SELECT | Inventory in the dungeon; manual on menus
 | START | Freeze or unfreeze the game
 | START + SELECT | Quit (asks first)
@@ -85,7 +85,7 @@ Monsters attack from the front, and sometimes the sides. Only the two champions 
 ## Attacking
 - Press A, B, X or Y. That champion uses their first attack. The letters are shown beside the names on the top screen.
 - Hold the button to keep attacking whenever their weapon is ready.
-- For a different attack, hold ZL (second) or ZR (third) with the button, or tap FIGHT, tap the weapon and choose. The FIGHT panel closes by itself after the attack.
+- For a different attack, hold ZR (second) with the button, or tap FIGHT, tap the weapon and choose. The FIGHT panel closes by itself after the attack.
 
 After an attack, the champion's letter on the top screen turns grey until they recover.
 
@@ -145,7 +145,7 @@ Homebrew needs a copy of the 3DS sound firmware. Run DSP1 from the Homebrew Laun
 Put GRAPHICS.DAT and DUNGEON.DAT in sdmc:/3ds/csb3ds/.
 
 ## A tap does nothing
-Some screens zoom in on their buttons. Hold ZL on a menu screen to see the whole screen.
+Some screens zoom in on their buttons. Hold ZR on a menu screen to see the whole screen.
 
 ## Debugging
 An empty file named debug.txt in sdmc:/3ds/csb3ds/ writes csb3ds.log there and marks each tap with a crosshair.

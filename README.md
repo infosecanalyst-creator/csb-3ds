@@ -28,7 +28,7 @@ the inventory at 1.4x so the slots are finger-sized.
 | Screen | What it shows |
 |---|---|
 | **Top** | The whole game screen at 1.2x, centred. |
-| **Bottom** | Zoomed in on that screen's buttons (2x or 1.5x when they fit) so they are big enough for a finger; otherwise the whole screen at 1:1. Hold **ZL** to see the whole screen at 1:1. |
+| **Bottom** | Zoomed in on that screen's buttons (2x or 1.5x when they fit) so they are big enough for a finger; otherwise the whole screen at 1:1. Hold **ZR** to see the whole screen at 1:1. |
 
 **Before anyone joins the party**, the bottom screen shows the dungeon view at 1:1
 and the movement arrows at 2x, because the portrait row, spell runes and attack
@@ -41,18 +41,18 @@ menu are still empty.
 | D-pad / Circle Pad | Step forward/back, turn left/right (hold to keep going); there are no on-screen arrows |
 | **L** / **R** | Strafe left / right |
 | **A / B / X / Y** | Champion 1 / 2 / 3 / 4 attacks (first attack) in one press; hold to keep attacking whenever the weapon is ready |
-| **ZL** + A/B/X/Y | That champion's second attack |
-| **ZR** + A/B/X/Y | That champion's third attack |
+| **ZR** + A/B/X/Y | That champion's second attack (third: FIGHT panel) |
+| **ZL** (dungeon) | Swap the screens (same as the SWAP tab) |
 | **FIGHT** / **SPELL** tabs | Show the attack menu / spell runes (the attack menu also appears by itself while open) |
 | **RECAST** tab | Repeat the last spell; hold it to choose any champion's last spell |
 | **SELECT** or **BAG** tab | Open / close the leader's inventory (with an item in hand BAG reads **STOW** and puts it in the leader's backpack) |
 | Double-tap food or a flask (inventory) | Eat or drink it |
-| **ZL** held (dungeon) | Whole message log on the top screen |
+| **ZR** held (dungeon) | Whole message log on the top screen |
 | **SWAP** tab | Dungeon view on the bottom (touch) or on the top (3D) |
 | **HELP** tab, or **SELECT** on menu screens | The instruction manual |
 | Tap | Left click on whatever is under your finger |
 | **ZR** held + tap | Right click |
-| **ZL** (menus) | Show the whole bottom screen at 1:1 instead of the zoomed buttons |
+| **ZR** held (menus) | Show the whole bottom screen at 1:1 instead of the zoomed buttons |
 | **START** | Freeze game |
 | **START + SELECT** | Quit (asks first) |
 | 3D slider | Stereo depth (slide down to turn it off) |
