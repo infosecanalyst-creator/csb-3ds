@@ -1150,6 +1150,23 @@ static void handleTouch(u32 held)
 
 static void showManual(void);
 
+// Left-handed play: the D-pad and A/B/X/Y swap jobs (Y<->up, A<->right, B<->down, X<->left).
+// Toggled from the manual's bottom screen; remembered in csb3ds.ini.
+static bool leftyOn = false;
+static u32 remapKeys(u32 m)
+{
+  static const u32 pr[4][2] = { { KEY_Y, KEY_DUP }, { KEY_A, KEY_DRIGHT }, { KEY_B, KEY_DDOWN }, { KEY_X, KEY_DLEFT } };
+  if (!leftyOn) return m;
+  u32 r = m;
+  for (int i = 0; i < 4; i++) r &= ~(pr[i][0] | pr[i][1]);
+  for (int i = 0; i < 4; i++) {
+    if (m & pr[i][0]) r |= pr[i][1];
+    if (m & pr[i][1]) r |= pr[i][0];
+  }
+  return r;
+}
+static void saveSettings(void);
+
 // Buttons still held when a modal (manual, message box) closes must not leak into
 // the game: B that closed the manual would otherwise attack with champion 2.
 static bool armSuppress = false;
@@ -1162,7 +1179,7 @@ bool n3ds_poll(void)
 {
   if (!aptMainLoop()) return false;
   hidScanInput();
-  u32 down = hidKeysDown(), held = hidKeysHeld();
+  u32 down = remapKeys(hidKeysDown()), held = remapKeys(hidKeysHeld());
   if (armSuppress) { suppressMask = held & GAME_KEYS; armSuppress = false; }
   suppressMask &= held;               // released buttons work again
   down &= ~suppressMask; held &= ~suppressMask;
@@ -1463,11 +1480,11 @@ static void manDrawBottom(u16 *fb)
   const u16 face = rgb565(52, 44, 36), on = rgb565(120, 90, 40), edge = rgb565(150, 130, 100);
   const u16 text = rgb565(235, 225, 195), focusC = rgb565(250, 215, 110);
   fillRect(fb, BOT_W, 0, 0, BOT_W, BOT_H, rgb565(10, 10, 12));
-  int count = manSecCount + 1;
+  int count = manSecCount + 2;   // sections, CLOSE, LEFT HAND
   for (int i = 0; i < count; i++) {
     Rect r = manButton(i, count);
     bool close = i == manSecCount, down = i == manPressed;
-    u16 fill = close ? rgb565(120, 30, 24) : (i == manSection ? on : face);
+    u16 fill = close ? rgb565(120, 30, 24) : (i == manSecCount + 1 ? (leftyOn ? on : face) : (i == manSection ? on : face));
     if (down) fill = close ? rgb565(70, 16, 12) : rgb565(30, 25, 20);
     fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, fill);
     frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, close ? rgb565(220, 90, 70) : edge);
@@ -1478,6 +1495,7 @@ static void manDrawBottom(u16 *fb)
     if (down) r.y++;
     char label[24];
     if (close) strcpy(label, "CLOSE");
+    else if (i == manSecCount + 1) strcpy(label, leftyOn ? "LEFT HAND: ON" : "LEFT HAND: OFF");
     else {
       int n = manSecTitleLen[i] < 18 ? manSecTitleLen[i] : 18;
       memcpy(label, manSecTitle[i], n); label[n] = 0;
@@ -1513,13 +1531,14 @@ static void showManual(void)
   DBG("[n3ds] manual open: section %d\n", manSection);
   bool waitRelease = true;   // the tap that opened the manual is still down
   int repeat = 0;
-  const int count = manSecCount + 1;
+  const int count = manSecCount + 2;   // sections, CLOSE, LEFT HAND
   const u32 SCROLL_DOWN = KEY_CPAD_DOWN | KEY_CSTICK_DOWN, SCROLL_UP = KEY_CPAD_UP | KEY_CSTICK_UP;
   while (aptMainLoop()) {
     hidScanInput();
-    u32 kd = hidKeysDown(), kh = hidKeysHeld();
+    u32 kd = remapKeys(hidKeysDown()), kh = remapKeys(hidKeysHeld());
     if (kd & (KEY_B | KEY_START)) { playClick(); break; }
     if ((kd & KEY_A) && manFocus == manSecCount) { playClick(); break; }
+    if ((kd & KEY_A) && manFocus == manSecCount + 1) { playClick(); leftyOn = !leftyOn; saveSettings(); }
     int sec = manSection, focus = manFocus;
     if (kd & KEY_R) focus = sec = (manSection + 1) % manSecCount;
     if (kd & KEY_L) focus = sec = (manSection + manSecCount - 1) % manSecCount;
@@ -1538,7 +1557,8 @@ static void showManual(void)
       manPressed = waitRelease ? (hit == manFocus ? hit : -1) : -1;
     } else {
       if (manPressed == manSecCount) { manPressed = -1; break; }   // CLOSE acts on release
-      if (manPressed >= 0) sec = manPressed;
+      if (manPressed == manSecCount + 1) { leftyOn = !leftyOn; saveSettings(); }   // LEFT HAND flips, stays open
+      else if (manPressed >= 0) sec = manPressed;
       manPressed = -1;
       waitRelease = false;
     }
@@ -1580,7 +1600,7 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
   bool result = true;
   while (aptMainLoop()) {
     hidScanInput();
-    u32 kd = hidKeysDown();
+    u32 kd = remapKeys(hidKeysDown());
     if (kd & KEY_A) { result = true; break; }
     if (yesno && (kd & KEY_B)) { result = false; break; }
     gfxFlushBuffers();
@@ -1687,7 +1707,7 @@ static void saveSettings(void)
 {
   FILE *f = fopen(DATA_DIR "/csb3ds.ini", "w");
   if (!f) return;
-  fprintf(f, "view_on_bottom=%d\nshow_spell=%d\n", viewOnBottom ? 1 : 0, showSpell ? 1 : 0);
+  fprintf(f, "view_on_bottom=%d\nshow_spell=%d\nlefty=%d\n", viewOnBottom ? 1 : 0, showSpell ? 1 : 0, leftyOn ? 1 : 0);
   fclose(f);
 }
 
@@ -1700,6 +1720,7 @@ static void loadSettings(void)
   while (fgets(line, sizeof line, f)) {
     if (sscanf(line, "view_on_bottom=%d", &v) == 1) viewOnBottom = v != 0;
     if (sscanf(line, "show_spell=%d", &v) == 1) showSpell = v != 0;
+    if (sscanf(line, "lefty=%d", &v) == 1) leftyOn = v != 0;
   }
   fclose(f);
 }

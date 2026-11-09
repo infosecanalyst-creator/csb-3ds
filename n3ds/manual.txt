@@ -64,6 +64,7 @@ SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top
 | SELECT | Inventory in the dungeon; manual on menus
 | START | Freeze or unfreeze the game
 | START + SELECT | Quit (asks first)
+| Left hand | The LEFT HAND button on the manual's touch screen swaps the D-pad with Y, A, B and X (Y is up, A is right, B is down, X is left, and the reverse), so the stylus can be held in the left hand. It is remembered.
 | 3D slider | Depth for the top-screen view and map
 
 The A B X Y attacks and SELECT inventory only work in the dungeon, so they can never press a menu button by accident.
