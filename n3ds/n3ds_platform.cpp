@@ -676,6 +676,7 @@ static void drawBar(u16 *fb, int x, int y, int w, int h, int cur, int max, u16 c
   }
 }
 
+static bool leftyNow();   // left-handed mode (defined with the remap below)
 static void drawParty(u16 *fb)
 {
   int n = n3ds_engine_party_size();
@@ -703,10 +704,11 @@ static void drawParty(u16 *fb)
     if (i > 0) fillRect(fb, TOP_W, 0, y0 - 1, INFO_PARTY_W, 1, rgb565(60, 54, 44));   // divider
     // The button that attacks with this champion: lit in their colour when the
     // weapon is ready, grey while it recovers.
-    static const char *const BUTTON[4] = { "A", "B", "X", "Y" };
+    // Left-handed mode: the D-pad direction that now attacks (A=right, B=down, X=left, Y=up).
+    static const char *const BUTTON[4] = { "A", "B", "X", "Y" }, *const LBUTTON[4] = { ">", "v", "<", "^" };
     bool ready = alive && !e[3];
     fillRect(fb, TOP_W, 1, y0 - 1, 10, 10, ready ? CHAMP_COLOR[i] : rgb565(70, 70, 70));
-    drawText(fb, TOP_W, 2, y0, BUTTON[i], ready ? rgb565(0, 0, 0) : rgb565(150, 150, 150));
+    drawText(fb, TOP_W, 2, y0, leftyNow() ? LBUTTON[i] : BUTTON[i], ready ? rgb565(0, 0, 0) : rgb565(150, 150, 150));
     drawText(fb, TOP_W, 14, y0, n3ds_engine_champion_name(i), alive ? CHAMP_TEXT[i] : rgb565(110, 100, 100));
     if (i == n3ds_engine_leader()) drawText(fb, TOP_W, 76, y0, "LEAD", rgb565(245, 200, 90));
     if (!alive) drawText(fb, TOP_W, INFO_PARTY_W - 32, y0, "DEAD", rgb565(230, 70, 70));
@@ -1153,6 +1155,7 @@ static void showManual(void);
 // Left-handed play: the D-pad and A/B/X/Y swap jobs (Y<->up, A<->right, B<->down, X<->left).
 // Toggled from the manual's bottom screen; remembered in csb3ds.ini.
 static bool leftyOn = false;
+static bool leftyNow() { return leftyOn; }
 static u32 remapKeys(u32 m)
 {
   static const u32 pr[4][2] = { { KEY_Y, KEY_DUP }, { KEY_A, KEY_DRIGHT }, { KEY_B, KEY_DDOWN }, { KEY_X, KEY_DLEFT } };
@@ -1461,7 +1464,7 @@ static void manDrawTop(u16 *fb)
     fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, rgb565(50, 46, 40));
     fillRect(fb, TOP_W, TOP_W - 5, thumbY, 4, thumbH, gold);
   }
-  drawText(fb, TOP_W, MAN_X, TOP_H - 11, "STICKS SCROLL  D-PAD PICK  L/R  B CLOSE", dim);
+  drawText(fb, TOP_W, MAN_X, TOP_H - 11, leftyOn ? "STICKS SCROLL ABXY PICK L/R D-DOWN CLOSE" : "STICKS SCROLL  D-PAD PICK  L/R  B CLOSE", dim);
 }
 
 static Rect manButton(int i, int count)   // section buttons in two columns, Close last
@@ -1596,7 +1599,8 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
   consoleSelect(&con);
   consoleClear();
   printf("\x1b[1;1H\x1b[33m%s\x1b[0m\n\n%s\n\n", title ? title : "CSB", msg ? msg : "");
-  printf(yesno ? "A = Yes    B = No\n" : "Press A to continue\n");
+  if (leftyOn) printf(yesno ? "D-Pad right = Yes    D-Pad down = No\n" : "Press D-Pad right to continue\n");
+  else printf(yesno ? "A = Yes    B = No\n" : "Press A to continue\n");
   bool result = true;
   while (aptMainLoop()) {
     hidScanInput();
