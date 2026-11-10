@@ -40,7 +40,7 @@ The touch screen is where you play. Use the stylus like a mouse; a finger works 
 | SPELL | Rune panel for casting.
 | RECAST | Casts the last spell again. Hold it to pick any champion's last spell.
 | BAG | The leader's inventory. With an item in hand it reads STOW and puts the item in the leader's backpack.
-| SWAP | Moves the big view to the top screen (look only: tap SWAP again, or press ZL, to touch the dungeon).
+| SWAP | Moves the big view to the top screen; the map below it becomes a touchpad for pointing at the view.
 | HELP | This manual.
 
 ## Top screen: information
@@ -50,7 +50,7 @@ The touch screen is where you play. Use the stylus like a mouse; a finger works 
 - Messages: the last lines the game printed. Hold ZR to see the whole log.
 
 ## SWAP
-SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top screen, with 3D depth from the 3D slider, and moves the map to the bottom. The top screen can't be touched, so to pick things up or press buttons, tap SWAP again or press ZL. The game remembers your choice.
+SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top screen, with 3D depth from the 3D slider, and moves the map to the bottom. The map on the touch screen then works as a touchpad: slide to move the pointer over the view on top, tap to click where it points (ZR + tap for the right button). Tap SWAP again or press ZL to touch the dungeon directly. The game remembers your choice.
 
 # Controls
 | D-pad | Step forward or back, turn left or right

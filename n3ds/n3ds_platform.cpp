@@ -873,6 +873,12 @@ static void drawBottom(u16 *fb)
   const Region *regs = bottomRegions(&n);
   if (layout == LAYOUT_DUNGEON && !viewOnBottom) drawAutomap(fb, BOT_W, MAP_ON_BOTTOM, 0, 0);
   for (int i = n - 1; i >= 0; i--) blitRegion(fb, regs[i]);   // back to front
+  if (layout == LAYOUT_DUNGEON && !viewOnBottom) {   // the map doubles as a touchpad for the view on top
+    static const char hint[] = "Slide: move pointer  Tap: click";
+    int tw = (int)sizeof hint - 1;
+    fillRect(fb, BOT_W, (BOT_W - tw * 8) / 2 - 3, 199, tw * 8 + 6, 10, rgb565(20, 18, 14));
+    drawText(fb, BOT_W, (BOT_W - tw * 8) / 2, 200, hint, rgb565(170, 160, 140));
+  }
   if (layout == LAYOUT_DUNGEON) {
     if (fightShown()) framePopup(fb, POP_FIGHT);
     else if (showSpell) framePopup(fb, POP_SPELL);
@@ -1085,11 +1091,53 @@ static void pressTab(int i)
 static int recastTouchX, recastTouchY, lastTapX, lastTapY;
 static u64 lastTapUpTick = 0;
 
+// Swapped (view on the top screen): the auto-map area is a touchpad (UI rule 7).
+// Slide moves the game's own cursor over the big view on top; a short tap clicks
+// where it points (ZR + tap = right button).
+static bool padTouch = false;
+static float padX = VP_X + VP_W / 2, padY = VP_Y + VP_H / 2;
+static int padLastX, padLastY, padMoved;
+static u64 padSince;
+
+static bool touchpadActive(void) { return layout == LAYOUT_DUNGEON && !viewOnBottom; }
+
 static void handleTouch(u32 held)
 {
+  if (padTouch) {
+    if (held & KEY_TOUCH) {
+      touchPosition t;
+      hidTouchRead(&t);
+      int dx = t.px - padLastX, dy = t.py - padLastY;
+      padLastX = t.px; padLastY = t.py;
+      if (dx || dy) {
+        padMoved += abs(dx) + abs(dy);
+        padX = fminf(fmaxf(padX + dx * (float)VP_W / BOT_W, VP_X), VP_X + VP_W - 1);
+        padY = fminf(fmaxf(padY + dy * (float)VP_H / 178, VP_Y), VP_Y + VP_H - 1);
+        n3ds_send_mouse_move((int)padX, (int)padY);
+        presentPending = topDirty = true;
+      }
+    } else {
+      padTouch = false;
+      if (padMoved < 6 && svcGetSystemTick() - padSince < 350 * MS) {
+        bool right = (held & KEY_ZR) != 0;
+        n3ds_send_mouse_move((int)padX, (int)padY);
+        n3ds_send_mouse_button(right, true, (int)padX, (int)padY);
+        n3ds_send_mouse_button(right, false, (int)padX, (int)padY);
+      }
+    }
+    return;
+  }
   if (held & KEY_TOUCH) {
     touchPosition t;
     hidTouchRead(&t);
+    if (!touching && touchpadActive() && inRect(MAP_ON_BOTTOM, t.px, t.py)) {
+      padTouch = true;
+      padLastX = t.px; padLastY = t.py; padMoved = 0;
+      padSince = svcGetSystemTick();
+      n3ds_send_mouse_move((int)padX, (int)padY);   // show the cursor where it was left
+      presentPending = topDirty = true;
+      return;
+    }
     if (!touching) {
       touching = true;
       dbgTX = t.px; dbgTY = t.py; presentPending = topDirty = true;
