@@ -69,22 +69,23 @@ static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, (TOP_W - 384) / 2, 0, 
 // The attack menu and spell runes pop up over the right side of the view at 2x,
 // only while wanted. Movement is on the D-pad / Circle Pad.
 static const Region BOT_PORTRAITS = { 0, 0, ST_W, PORT_H, 0, 0, 320, PORT_H };
-static const Region BOT_VIEW      = { VP_X, VP_Y, VP_W, VP_H, 0, 34, 320, 174 };   // edge to edge (1.43x by 1.28x)
+static const Region BOT_VIEW      = { VP_X, VP_Y, VP_W, VP_H, 0, 34, 320, 170 };   // edge to edge (1.43x by 1.25x), 4 px above the tabs
 // Pop-up sources measured from hardware photos: the panels start 8 px into the
 // controls column; the spell panel is y 41..75, the action icons / attack menu y 77..123.
 // Both sit in the lower right, just above the tabs, so the monster in front of you
 // (the middle of the view) stays visible. Only one is shown at a time.
-static const Region POP_FIGHT     = { 232, 77, 88, 47, 142, 113, 176, 94 };   // action icons / attack menu (2x)
-static const Region POP_SPELL     = { 232, 41, 88, 35, 142, 137, 176, 70 };   // caster tabs, runes, cast (2x)
-enum { TAB_Y = 210, TAB_H = 30, NUM_TABS = 6, TAB_W = BOT_W / NUM_TABS };
+static const Region POP_FIGHT     = { 232, 77, 88, 47, 142, 110, 176, 94 };   // action icons / attack menu (2x)
+static const Region POP_SPELL     = { 232, 41, 88, 35, 142, 134, 176, 70 };   // caster tabs, runes, cast (2x)
+// UI rule 11: tabs 26 px tall, 4 px apart, 6 px from the screen edges
+enum { TAB_Y = 208, TAB_H = 26, NUM_TABS = 6, TAB_EDGE = 6, TAB_GAP = 4, TAB_W = (BOT_W - 2 * TAB_EDGE - (NUM_TABS - 1) * TAB_GAP) / NUM_TABS };
 enum { TAB_FIGHT, TAB_SPELL, TAB_RECAST, TAB_BAG, TAB_SWAP, TAB_HELP };
 static const char *const TAB_LABEL[NUM_TABS] = { "FIGHT", "SPELL", "RECAST", "BAG", "SWAP", "HELP" };
 static bool manualRequested = false;   // opened from n3ds_poll, outside the touch handler
 static int pressedTab = -1;            // drawn pressed while the finger is on it
-static inline Rect tabRect(int i) { Rect r = { i * TAB_W, TAB_Y, TAB_W - 2, TAB_H }; return r; }
+static inline Rect tabRect(int i) { Rect r = { TAB_EDGE + i * (TAB_W + TAB_GAP), TAB_Y, TAB_W, TAB_H }; return r; }
 // With SWAP, the big view goes back to the top screen (with 3D depth) and the
 // auto-map takes its place on the bottom.
-static const Rect MAP_ON_BOTTOM = { 0, 34, BOT_W, 178 };
+static const Rect MAP_ON_BOTTOM = { 0, 34, BOT_W, 170 };   // ends 4 px above the tabs
 static bool viewOnBottom = true, showFight = false, showSpell = false;
 static bool logView = false;   // ZR held: the top screen shows the whole message log
 // Inventory: portraits 1:1 + the inventory panel at 1.4x, so slots are finger-sized.
@@ -849,11 +850,13 @@ static void drawTabs(u16 *fb)
     if (down) fillRect(fb, BOT_W, r.x + 1, r.y + r.h - 2, r.w - 2, 1, edge);
     const char *label = (i == TAB_BAG && handFull()) ? "STOW" : TAB_LABEL[i];
     int len = (int)strlen(label);
-    drawText(fb, BOT_W, r.x + (r.w - len * 8) / 2, r.y + 8 + (down ? 1 : 0), label, live ? text : dim);
+    int adv = len * 8 > r.w - 4 ? 7 : 8;   // the 8x8 glyphs have a blank right column: 7 px spacing fits "RECAST"
+    int lx = r.x + (r.w - len * adv + (adv == 7 ? 1 : 0)) / 2, ly = r.y + 7 + (down ? 1 : 0);
+    for (int k = 0; k < len; k++) { char one[2] = { label[k], 0 }; drawText(fb, BOT_W, lx + k * adv, ly, one, live ? text : dim); }
     if (i == TAB_RECAST && haveSpell) {   // whose spell, and how many runes
       fillRect(fb, BOT_W, r.x + 2, r.y + 2, r.w - 4, 2, CHAMP_COLOR[lastCaster]);   // caster colour along the top
       for (int k = 0; k < 4 && lastSpell[lastCaster][k]; k++)
-        fillRect(fb, BOT_W, r.x + (r.w - 4 * 8) / 2 + k * 8 + 1, r.y + 20, 5, 4, CHAMP_COLOR[lastCaster]);
+        fillRect(fb, BOT_W, r.x + (r.w - 4 * 8) / 2 + k * 8 + 1, r.y + 18, 5, 4, CHAMP_COLOR[lastCaster]);
     }
   }
 }
@@ -876,8 +879,8 @@ static void drawBottom(u16 *fb)
   if (layout == LAYOUT_DUNGEON && !viewOnBottom) {   // the map doubles as a touchpad for the view on top
     static const char hint[] = "Slide: move pointer  Tap: click";
     int tw = (int)sizeof hint - 1;
-    fillRect(fb, BOT_W, (BOT_W - tw * 8) / 2 - 3, 199, tw * 8 + 6, 10, rgb565(20, 18, 14));
-    drawText(fb, BOT_W, (BOT_W - tw * 8) / 2, 200, hint, rgb565(170, 160, 140));
+    fillRect(fb, BOT_W, (BOT_W - tw * 8) / 2 - 3, 193, tw * 8 + 6, 10, rgb565(20, 18, 14));
+    drawText(fb, BOT_W, (BOT_W - tw * 8) / 2, 194, hint, rgb565(170, 160, 140));
   }
   if (layout == LAYOUT_DUNGEON) {
     if (fightShown()) framePopup(fb, POP_FIGHT);
