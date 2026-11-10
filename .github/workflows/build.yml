@@ -30,7 +30,7 @@ jobs:
           rm -rf out-keep && mv out out-keep 2>/dev/null || true
           mv pub out
       - name: Publish to builds branch
-        if: always()
+        if: success()   # never replace the last good build with a failed one; failed-build logs stay in the Actions run
         run: |
           cd out
           git init -q -b builds
