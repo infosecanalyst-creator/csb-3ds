@@ -60,7 +60,7 @@ SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top
 | ZR + A B X Y | That champion's second attack (the third is on the FIGHT panel)
 | ZR + tap | Right click
 | ZR (hold) | Show the whole message log
-| ZL | Swap the screens (dungeon)
+| ZL | Swap the screens (dungeon); zoom in on the buttons or back (menus)
 | SELECT | Inventory in the dungeon; manual on menus
 | START | Freeze or unfreeze the game
 | START + SELECT | Quit (asks first)
@@ -146,7 +146,7 @@ Homebrew needs a copy of the 3DS sound firmware. Run DSP1 from the Homebrew Laun
 Put GRAPHICS.DAT and DUNGEON.DAT in sdmc:/3ds/csb3ds/.
 
 ## A tap does nothing
-Some screens zoom in on their buttons. Hold ZR on a menu screen to see the whole screen.
+On menu screens (title, entrance, champion mirror) ZL zooms the touch screen in on the buttons; press ZL again to see the whole screen.
 
 ## Debugging
 An empty file named debug.txt in sdmc:/3ds/csb3ds/ writes csb3ds.log there and marks each tap with a crosshair.

@@ -58,8 +58,8 @@ static inline bool inRect(const Rect &r, int x, int y) { return x >= r.x && x < 
 // and the party's vitals as slim bars along the left and right edges.
 static const Region TOP_DUNGEON_VP  = { VP_X, VP_Y, VP_W, VP_H, 0, 0, TOP_W, TOP_H };
 static const Region TOP_DUNGEON_TXT = { 0, TXT_Y, ST_W, TXT_H, (TOP_W - 320) / 2, TOP_H - TXT_H - 2, 320, TXT_H };
-// Everything else (title, entrance, menus, inventory): whole screen at 1.2x, centred.
-static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, (TOP_W - 384) / 2, 0, 384, 240 };
+// Menus with the button zoom on (ZL): the whole ST screen filling the top screen.
+static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, 0, 0, TOP_W, TOP_H };
 
 // --- Bottom screen --------------------------------------------------------
 // Dungeon, view on the bottom (the default): the screen you touch is the dungeon.
@@ -93,9 +93,11 @@ static const Region BOT_INVENTORY[] = {
   { 0,    0,    ST_W, PORT_H, 0, 0,  320, PORT_H },
   { VP_X, VP_Y, VP_W, VP_H,   3, 37, 314, 190    },
 };
-// Everything else: the whole screen at 1:1 (exact mouse mapping), or zoomed in
-// on the screen's buttons so they are finger-sized (see updateFullZoom()).
-static const Region BOT_FULL_1X = { 0, 0, ST_W, ST_H, 0, (BOT_H - ST_H) / 2, ST_W, ST_H };
+// Everything else: the whole screen filling the touch screen (1:1 wide, 1.2x
+// tall), or, after ZL, zoomed in on the screen's buttons (see updateFullZoom()).
+// Ryan: both screens always filled; zoom only on a button press.
+static const Region BOT_FULL_1X = { 0, 0, ST_W, ST_H, 0, 0, BOT_W, BOT_H };
+static bool fullZoom = false;   // ZL on menu screens
 static Region BOT_FULL[1] = { BOT_FULL_1X };
 
 enum Layout { LAYOUT_FULL = 0, LAYOUT_DUNGEON = 1, LAYOUT_INVENTORY = 2 };
@@ -771,6 +773,20 @@ static void drawInfo(u16 *fb, float eye, float slider)
   drawLog(fb, TOP_W, 4, INFO_LOG_Y, INFO_LOG_LINES, INFO_LOG_H);
 }
 
+// Title, entrance and other screens before the party exists: a short card instead
+// of a second copy of the touch screen.
+static void drawMenuCard(u16 *fb)
+{
+  const u16 gold = rgb565(245, 200, 90), text = rgb565(220, 210, 190), dim = rgb565(150, 140, 120);
+  fillRect(fb, TOP_W, 0, 0, TOP_W, 22, rgb565(70, 52, 30));
+  drawText(fb, TOP_W, 8, 7, "DUNGEON MASTER / CHAOS STRIKES BACK", gold);
+  drawText(fb, TOP_W, 8, 40, "Tap the buttons on the touch screen.", text);
+  drawText(fb, TOP_W, 8, 60, "ZL      Zoom in on the buttons / back", text);
+  drawText(fb, TOP_W, 8, 76, "SELECT  Manual", text);
+  drawText(fb, TOP_W, 8, 92, "START   Freeze", text);
+  drawText(fb, TOP_W, 8, 216, "In the dungeon: tap a mirror to meet a champion.", dim);
+}
+
 static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
 {
   memset(fb, 0, TOP_W * TOP_H * 2);
@@ -784,8 +800,12 @@ static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
     blitViewportStereo(fb, TOP_DUNGEON_VP, eye, slider);
     drawMessages(fb);
     drawVitals(fb);
+  } else if (fullZoom) {
+    blitRegion(fb, TOP_FULL);   // the touch screen is zoomed: the whole screen here
+  } else if (n3ds_engine_party_size() > 0) {
+    drawInfo(fb, eye, slider);  // mirror, freeze, game over: the dashboard
   } else {
-    blitRegion(fb, TOP_FULL);
+    drawMenuCard(fb);           // title and entrance: what the buttons do
   }
 }
 
@@ -1258,7 +1278,7 @@ bool n3ds_poll(void)
       layout = want;
       presentPending = topDirty = true;
     }
-    if (layout == LAYOUT_FULL) updateFullZoom((held & KEY_ZR) != 0);
+    if (layout == LAYOUT_FULL) updateFullZoom(!fullZoom);
   }
 
   if ((held & KEY_START) && (held & KEY_SELECT) && (down & (KEY_START | KEY_SELECT))) {
@@ -1274,6 +1294,11 @@ bool n3ds_poll(void)
     toggleLeaderInventory();                                                      // SELECT: bag
   if ((down & KEY_SELECT) && !(held & KEY_START) && layout == LAYOUT_FULL && !touching)
     manualRequested = true;                                                       // SELECT on menus: manual
+  // ZL on menus, the entrance, the mirror...: zoom in on the buttons, or back.
+  if ((down & KEY_ZL) && layout == LAYOUT_FULL) {
+    fullZoom = !fullZoom;
+    presentPending = topDirty = true;
+  }
   // ZL swaps the big view between the screens (the SWAP tab), in the dungeon.
   if ((down & KEY_ZL) && layout == LAYOUT_DUNGEON) {
     viewOnBottom = !viewOnBottom;
