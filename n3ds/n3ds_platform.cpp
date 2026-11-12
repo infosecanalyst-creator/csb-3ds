@@ -1274,9 +1274,11 @@ static const u32 GAME_KEYS = KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R | KEY
                              KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT | KEY_CPAD_UP | KEY_CPAD_DOWN |
                              KEY_CPAD_LEFT | KEY_CPAD_RIGHT | KEY_CSTICK_LEFT | KEY_CSTICK_RIGHT | KEY_START | KEY_SELECT;
 
+static void flushSettings(bool force);
 bool n3ds_poll(void)
 {
-  if (!aptMainLoop()) return false;
+  if (!aptMainLoop()) { flushSettings(true); return false; }
+  flushSettings(false);
   hidScanInput();
   u32 down = remapKeys(hidKeysDown()), held = remapKeys(hidKeysHeld());
   if (armSuppress) { suppressMask = held & GAME_KEYS; armSuppress = false; }
@@ -1308,8 +1310,10 @@ bool n3ds_poll(void)
 
   if ((held & KEY_START) && (held & KEY_SELECT) && (down & (KEY_START | KEY_SELECT))) {
     if (n3ds_message_box("Quit to the Homebrew Launcher?\nUnsaved progress will be lost.",
-                         "Quit", true))
+                         "Quit", true)) {
+      flushSettings(true);
       return false;
+    }
     return true;
   }
   if ((down & KEY_START) && !(held & KEY_SELECT)) n3ds_send_key(0x1b, 0x29);      // Esc: freeze
@@ -1808,7 +1812,20 @@ static bool fileExists(const char *name)
 }
 
 // Remembered between sessions: which screen has the view, and open pop-ups.
+// Writing a file on the 3DS SD card takes a noticeable moment, so a change only
+// marks the settings dirty; they are written 3 s after the last change (and on quit),
+// never in the middle of a ZL swap.
+static u64 settingsDue = 0;
+static void writeSettingsNow(void);
 static void saveSettings(void)
+{
+  settingsDue = svcGetSystemTick() + SYSCLOCK_ARM11 * 3;
+}
+static void flushSettings(bool force)
+{
+  if (settingsDue && (force || svcGetSystemTick() >= settingsDue)) { settingsDue = 0; writeSettingsNow(); }
+}
+static void writeSettingsNow(void)
 {
   FILE *f = fopen(DATA_DIR "/csb3ds.ini", "w");
   if (!f) return;
