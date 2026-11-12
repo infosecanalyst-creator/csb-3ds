@@ -794,6 +794,14 @@ static void drawMenuCard(u16 *fb)
   drawText(fb, TOP_W, 8, 60, "ZL      Zoom in on the buttons / back", text);
   drawText(fb, TOP_W, 8, 76, "SELECT  Manual", text);
   drawText(fb, TOP_W, 8, 92, "START   Freeze", text);
+  // The dungeon controls, so the card is useful before the game starts.
+  fillRect(fb, TOP_W, 8, 110, TOP_W - 16, 1, rgb565(70, 62, 50));
+  drawText(fb, TOP_W, 8, 118, "IN THE DUNGEON", gold);
+  drawText(fb, TOP_W, 8, 134, "Circle Pad  Walk and step sideways", text);
+  drawText(fb, TOP_W, 8, 148, "C-Stick     Turn left or right", text);
+  drawText(fb, TOP_W, 8, 162, "D-pad       Walk forward/back, turn", text);
+  drawText(fb, TOP_W, 8, 176, "A B X Y     Champion 1 2 3 4 attacks", text);
+  drawText(fb, TOP_W, 8, 190, "ZL          Swap the screens", text);
   drawText(fb, TOP_W, 8, 216, "In the dungeon: tap a mirror to meet a champion.", dim);
 }
 
@@ -810,7 +818,7 @@ static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
     blitViewportStereo(fb, TOP_DUNGEON_VP, eye, slider);
     drawMessages(fb);
     drawVitals(fb);
-  } else if (fullZoom) {
+  } else if (fullZoom && memcmp(&BOT_FULL[0], &BOT_FULL_1X, sizeof(Region)) != 0) {   // only when the touch screen really is zoomed (else: no duplicate)
     blitRegion(fb, TOP_FULL);   // the touch screen is zoomed: the whole screen here
   } else if (n3ds_engine_party_size() > 0) {
     drawInfo(fb, eye, slider);  // mirror, freeze, game over: the dashboard
