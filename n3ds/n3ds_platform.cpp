@@ -70,6 +70,7 @@ static const Region TOP_FULL        = { 0, 0, ST_W, ST_H, 0, 0, TOP_W, TOP_H };
 // only while wanted. Movement is on the D-pad / Circle Pad.
 static const Region BOT_PORTRAITS = { 0, 0, ST_W, PORT_H, 0, 0, 320, PORT_H };
 static const Region BOT_VIEW      = { VP_X, VP_Y, VP_W, VP_H, 0, 34, 320, 170 };   // edge to edge (1.43x by 1.25x), 4 px above the tabs
+static const Region BOT_VIEW_TALL = { VP_X, VP_Y, VP_W, VP_H, 0, 0, 320, 204 };    // no party yet: no portrait strip, the view takes its place
 // Pop-up sources measured from hardware photos: the panels start 8 px into the
 // controls column; the spell panel is y 41..75, the action icons / attack menu y 77..123.
 // Both sit in the lower right, just above the tabs, so the monster in front of you
@@ -522,6 +523,10 @@ void n3ds_note_message(int color, const char *text)
 static void drawLog(u16 *fb, int w, int x, int y, int lines, int lineH)
 {
   int shown = 0;
+  if (logCount == 0 || (logCount == 1 && !logText[logHead][0])) {   // nothing said yet: label the panel
+    drawText(fb, w, x, y + (lines / 2) * lineH, "MESSAGES FROM THE DUNGEON APPEAR HERE", rgb565(110, 104, 92));
+    return;
+  }
   for (int k = 0; k < logCount && shown < lines; k++) {   // newest at the bottom
     int idx = (logHead - k + LOG_LINES) % LOG_LINES;
     if (!logText[idx][0] && k == 0) continue;
@@ -689,6 +694,11 @@ static void drawParty(u16 *fb)
     drawText(fb, TOP_W, 4, 22, "TAP A MIRROR", rgb565(150, 145, 130));
     drawText(fb, TOP_W, 4, 32, "TO MEET A", rgb565(150, 145, 130));
     drawText(fb, TOP_W, 4, 42, "CHAMPION", rgb565(150, 145, 130));
+    // Controls primer in the space the party will use.
+    static const char *const PRIMER[] = { "CONTROLS", "PAD  MOVE/STRAFE", "C-STICK  TURN", "D-PAD  WALK/TURN",
+                                          "A B X Y  ATTACK", "ZL  SWAP SCREENS", "SELECT  BAG", "HELP  MANUAL" };
+    for (int k = 0; k < 8; k++)
+      drawText(fb, TOP_W, 4, 66 + k * 13, PRIMER[k], k == 0 ? rgb565(245, 200, 90) : rgb565(150, 145, 130));
     return;
   }
   // Each champion: name in their party colour, then labelled bars with current/max:
@@ -818,8 +828,9 @@ static const Region *bottomRegions(int *count)
     int n = 0;
     if (fightShown()) list[n++] = POP_FIGHT;
     else if (showSpell) list[n++] = POP_SPELL;
-    list[n++] = BOT_PORTRAITS;
-    if (viewOnBottom) list[n++] = BOT_VIEW;
+    bool party = n3ds_engine_party_size() > 0;
+    if (party) list[n++] = BOT_PORTRAITS;
+    if (viewOnBottom) list[n++] = party ? BOT_VIEW : BOT_VIEW_TALL;
     *count = n;
     return list;
   }
@@ -894,7 +905,11 @@ static void drawBottom(u16 *fb)
   memset(fb, 0, BOT_W * BOT_H * 2);
   int n;
   const Region *regs = bottomRegions(&n);
-  if (layout == LAYOUT_DUNGEON && !viewOnBottom) drawAutomap(fb, BOT_W, MAP_ON_BOTTOM, 0, 0);
+  if (layout == LAYOUT_DUNGEON && !viewOnBottom) {
+    Rect m = MAP_ON_BOTTOM;
+    if (n3ds_engine_party_size() == 0) { m.y = 0; m.h += 34; }   // no portrait strip yet
+    drawAutomap(fb, BOT_W, m, 0, 0);
+  }
   for (int i = n - 1; i >= 0; i--) blitRegion(fb, regs[i]);   // back to front
   if (layout == LAYOUT_DUNGEON && !viewOnBottom) {   // the map doubles as a touchpad for the view on top
     static const char hint[] = "Slide: move pointer  Tap: click";
@@ -1075,12 +1090,14 @@ static unsigned vitalsHash(void)
 // (Etrian Odyssey / Legend of Grimrock conventions). Keys repeat while held.
 struct KeyMap { u32 button; int sym; int scan; };
 static const KeyMap moveMap[] = {
-  { KEY_DUP    | KEY_CPAD_UP,    0x40000060, 0x60 },  // keypad 8: forward
-  { KEY_DDOWN  | KEY_CPAD_DOWN,  0x4000005d, 0x5d },  // keypad 5: back
-  { KEY_DLEFT  | KEY_CPAD_LEFT,  0x4000005f, 0x5f },  // keypad 7: turn left
-  { KEY_DRIGHT | KEY_CPAD_RIGHT, 0x40000061, 0x61 },  // keypad 9: turn right
-  { KEY_L,                       0x4000005c, 0x5c },  // keypad 4: strafe left
-  { KEY_R,                       0x4000005e, 0x5e },  // keypad 6: strafe right
+  // First-person rule for all ports: the Circle Pad moves and strafes (never turns),
+  // the C-Stick turns. The D-pad keeps Dungeon Master's own forward/back/turn.
+  { KEY_DUP    | KEY_CPAD_UP,      0x40000060, 0x60 },  // keypad 8: forward
+  { KEY_DDOWN  | KEY_CPAD_DOWN,    0x4000005d, 0x5d },  // keypad 5: back
+  { KEY_DLEFT  | KEY_CSTICK_LEFT,  0x4000005f, 0x5f },  // keypad 7: turn left
+  { KEY_DRIGHT | KEY_CSTICK_RIGHT, 0x40000061, 0x61 },  // keypad 9: turn right
+  { KEY_L      | KEY_CPAD_LEFT,    0x4000005c, 0x5c },  // keypad 4: strafe left
+  { KEY_R      | KEY_CPAD_RIGHT,   0x4000005e, 0x5e },  // keypad 6: strafe right
 };
 static const u32 FACE_BUTTON[4] = { KEY_A, KEY_B, KEY_X, KEY_Y };   // champions 1..4
 static const u64 REPEAT_DELAY = SYSCLOCK_ARM11 / 4;   // 250 ms
@@ -1247,7 +1264,7 @@ static bool armSuppress = false;
 static u32 suppressMask = 0;
 static const u32 GAME_KEYS = KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R | KEY_ZL | KEY_ZR |
                              KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT | KEY_CPAD_UP | KEY_CPAD_DOWN |
-                             KEY_CPAD_LEFT | KEY_CPAD_RIGHT | KEY_START | KEY_SELECT;
+                             KEY_CPAD_LEFT | KEY_CPAD_RIGHT | KEY_CSTICK_LEFT | KEY_CSTICK_RIGHT | KEY_START | KEY_SELECT;
 
 bool n3ds_poll(void)
 {

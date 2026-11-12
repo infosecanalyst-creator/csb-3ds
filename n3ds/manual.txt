@@ -54,7 +54,8 @@ SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top
 
 # Controls
 | D-pad | Step forward or back, turn left or right
-| Circle Pad | Same as the D-pad
+| Circle Pad | Up and down step forward and back; left and right step sideways (it never turns)
+| C-Stick | Turn left or right
 | L / R | Step sideways
 | A B X Y | Attack with champion 1 2 3 4 (left to right on the portraits; hold to keep attacking)
 | ZR + A B X Y | That champion's second attack (the third is on the FIGHT panel)
