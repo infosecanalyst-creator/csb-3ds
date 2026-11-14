@@ -29,6 +29,10 @@ INCLUDES := -I. -Isdl_sound -Iimgui -Ifnmatch -I$(PORTLIBS)/include -I$(CTRULIB)
 CFLAGS   := -include n3ds_compat.h -O2 -g -ffunction-sections -fno-strict-aliasing $(ARCH) $(DEFINES) $(INCLUDES) -w
 CXXFLAGS := $(CFLAGS) -std=gnu++11
 LDFLAGS  := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(TARGET).map -Wl,--gc-sections
+# Hardware test hooks (3ds-test-suite hwtest/selftest): inactive unless the test agent
+# starts the game with --selftest=<script>.
+SELFTEST_WRAP := hidScanInput hidKeysHeld hidKeysDown hidKeysDownRepeat hidKeysUp hidTouchRead hidCircleRead irrstCstickRead aptMainLoop
+LDFLAGS  += $(foreach f,$(SELFTEST_WRAP),-Wl,--wrap=$(f))
 LIBS     := -L$(PORTLIBS)/lib -L$(CTRULIB)/lib -lSDL2main $(SDL_LIBS) -lctru -lm
 
 ENGINE := DSA data Code11f52 Graphics Magic CSBCode Timer Character system SmartDiscard \
@@ -40,7 +44,7 @@ ENGINE := DSA data Code11f52 Graphics Magic CSBCode Timer Character system Smart
 IMGUI  := imgui/imgui imgui/imgui_draw imgui/imgui_impl_sdl2 imgui/imgui_tables \
           imgui/imgui_widgets imgui/imgui_impl_sdlrenderer2 n3ds_filebrowser_stub
 CSRC   := confile sdl_sound/SDL_sound sdl_sound/SDL_sound_mp3 sdl_sound/SDL_sound_raw \
-          sdl_sound/SDL_sound_wav fnmatch/fnmatch
+          sdl_sound/SDL_sound_wav fnmatch/fnmatch selftest
 
 OBJDIR := obj3ds
 OBJS   := $(addprefix $(OBJDIR)/,$(addsuffix .o,$(ENGINE) $(IMGUI) $(CSRC)))
