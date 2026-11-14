@@ -1,7 +1,7 @@
 # Welcome
 Dungeon Master for the New 3DS plays the original Dungeon Master and Chaos Strikes Back with CSBwin, a faithful remake of the original engine.
 
-You lead up to four champions through a real-time dungeon. Monsters move while you think, food and water run down, and torches burn out. The game never pauses unless you freeze it (START) or open this manual.
+You lead up to four champions through a real-time dungeon. Monsters move while you think, food and water run down, and torches burn out. The game never pauses unless you open the START menu, freeze it (START, then FREEZE) or open this manual.
 
 ## Reading this manual
 - Circle Pad or C-Stick: scroll the text (hold to keep scrolling).
@@ -63,8 +63,8 @@ SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top
 | ZR (hold) | Show the whole message log
 | ZL | Swap the screens (dungeon); zoom in on the buttons or back (menus)
 | SELECT | Inventory in the dungeon; manual on menus
-| START | Freeze or unfreeze the game
-| START + SELECT | Quit (asks first)
+| START | Menu: resume, freeze, manual, left hand, exit (asks first); the game waits while it is open
+| START + SELECT | Exit (asks first)
 | Left hand | The LEFT HAND button on the manual's touch screen swaps the D-pad with Y, A, B and X (Y is up, A is right, B is down, X is left, and the reverse), so the stylus can be held in the left hand. It is remembered.
 | 3D slider | Depth for the top-screen view and map
 
@@ -137,7 +137,7 @@ The map starts empty each time you start the game.
 - Light: torches burn down. When LIGHT drops, light a new torch or cast FUL.
 - Rest: sleep (ZZZ in the inventory) to recover HP, stamina and mana. Monsters can still find you.
 - Save often. The dungeon does not forgive.
-- Freeze with START any time you need to stop.
+- Open the START menu any time you need to stop; FREEZE keeps the game frozen after it closes.
 
 # Troubleshooting
 ## There is no sound

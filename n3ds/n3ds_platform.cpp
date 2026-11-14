@@ -783,34 +783,46 @@ static void drawInfo(u16 *fb, float eye, float slider)
   drawLog(fb, TOP_W, 4, INFO_LOG_Y, INFO_LOG_LINES, INFO_LOG_H);
 }
 
+// House style (claude/3ds-look-and-feel.md), shared by every port.
+static const u16 kHBg = rgb565(8, 12, 40), kHFace = rgb565(40, 56, 120), kHEdge = rgb565(120, 150, 230),
+                 kHPress = rgb565(220, 180, 60), kHShade = rgb565(20, 30, 70), kHGold = rgb565(255, 204, 64),
+                 kHWhite = rgb565(240, 240, 240), kHGrey = rgb565(150, 150, 165), kHLit = rgb565(80, 104, 180);
+static void drawHintStrip(u16 *fb, int w, const char *t)   // 16 px gold strip at y 224
+{
+  fillRect(fb, w, 0, 224, w, 16, kHShade);
+  drawText(fb, w, (w - (int)strlen(t) * 8) / 2, 228, t, kHGold);
+}
+
 // Title, entrance and other screens before the party exists: a short card instead
 // of a second copy of the touch screen.
 static void drawMenuCard(u16 *fb)
 {
-  const u16 gold = rgb565(245, 200, 90), text = rgb565(220, 210, 190), dim = rgb565(150, 140, 120);
-  fillRect(fb, TOP_W, 0, 0, TOP_W, 22, rgb565(70, 52, 30));
+  const u16 gold = kHGold, text = kHWhite, dim = kHGrey;
+  fillRect(fb, TOP_W, 0, 0, TOP_W, TOP_H, kHBg);
+  fillRect(fb, TOP_W, 0, 0, TOP_W, 22, kHFace);
   drawText(fb, TOP_W, 8, 7, "DUNGEON MASTER / CHAOS STRIKES BACK", gold);
-  drawText(fb, TOP_W, 8, 40, "Tap the buttons on the touch screen.", text);
-  drawText(fb, TOP_W, 8, 60, "ZL      Zoom in on the buttons / back", text);
-  drawText(fb, TOP_W, 8, 76, "SELECT  Manual", text);
-  drawText(fb, TOP_W, 8, 92, "START   Freeze", text);
+  drawText(fb, TOP_W, 8, 34, "Tap the buttons on the touch screen.", text);
+  drawText(fb, TOP_W, 8, 52, "ZL      Zoom in on the buttons / back", text);
+  drawText(fb, TOP_W, 8, 66, "START   Menu: freeze, manual, exit", text);
   // The dungeon controls, so the card is useful before the game starts.
-  fillRect(fb, TOP_W, 8, 110, TOP_W - 16, 1, rgb565(70, 62, 50));
-  drawText(fb, TOP_W, 8, 118, "IN THE DUNGEON", gold);
-  drawText(fb, TOP_W, 8, 134, "Circle Pad  Walk and step sideways", text);
-  drawText(fb, TOP_W, 8, 148, "C-Stick     Turn left or right", text);
-  drawText(fb, TOP_W, 8, 162, "D-pad       Walk forward/back, turn", text);
-  drawText(fb, TOP_W, 8, 176, "A B X Y     Champion 1 2 3 4 attacks", text);
-  drawText(fb, TOP_W, 8, 190, "ZL          Swap the screens", text);
-  drawText(fb, TOP_W, 8, 216, "In the dungeon: tap a mirror to meet a champion.", dim);
+  fillRect(fb, TOP_W, 8, 84, TOP_W - 16, 1, kHEdge);
+  drawText(fb, TOP_W, 8, 92, "IN THE DUNGEON", gold);
+  drawText(fb, TOP_W, 8, 108, "Circle Pad  Walk and step sideways", text);
+  drawText(fb, TOP_W, 8, 122, "C-Stick     Turn left or right", text);
+  drawText(fb, TOP_W, 8, 136, "D-pad       Walk forward/back, turn", text);
+  drawText(fb, TOP_W, 8, 150, "A B X Y     Champion 1 2 3 4 attacks", text);
+  drawText(fb, TOP_W, 8, 164, "SELECT      Inventory (bag)", text);
+  drawText(fb, TOP_W, 8, 178, "ZL          Swap the screens", text);
+  drawText(fb, TOP_W, 8, 200, "In the dungeon: tap a mirror to meet a champion.", dim);
+  drawHintStrip(fb, TOP_W, "START menu   ZL zoom / swap");
 }
 
 static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
 {
   memset(fb, 0, TOP_W * TOP_H * 2);
   if (logView) {
-    fillRect(fb, TOP_W, 0, 0, TOP_W, 12, rgb565(70, 52, 30));
-    drawText(fb, TOP_W, 4, 2, "MESSAGES  (RELEASE ZL TO GO BACK)", rgb565(245, 200, 90));
+    fillRect(fb, TOP_W, 0, 0, TOP_W, 12, kHFace);
+    drawText(fb, TOP_W, 4, 2, "MESSAGES  (RELEASE ZL TO GO BACK)", kHGold);
     drawLog(fb, TOP_W, 4, 16, 22, 10);
   } else if ((layout == LAYOUT_DUNGEON && viewOnBottom) || layout == LAYOUT_INVENTORY) {
     drawInfo(fb, eye, slider);
@@ -873,8 +885,8 @@ static void drawRecastChooser(u16 *fb)
 
 static void drawTabs(u16 *fb)
 {
-  const u16 face = rgb565(52, 44, 36), on = rgb565(110, 84, 40), edge = rgb565(150, 130, 100);
-  const u16 text = rgb565(235, 225, 195), dim = rgb565(110, 100, 90);
+  const u16 face = kHFace, on = kHLit, edge = kHEdge;
+  const u16 text = kHWhite, dim = rgb565(100, 106, 140);
   bool party = n3ds_engine_party_size() > 0;
   bool haveSpell = lastCaster >= 0 && lastCaster < n3ds_engine_party_size();
   if (recastChooser) drawRecastChooser(fb);
@@ -884,14 +896,14 @@ static void drawTabs(u16 *fb)
                (i == TAB_RECAST && recastChooser);
     bool live = i == TAB_SWAP || i == TAB_HELP || (i == TAB_RECAST ? haveSpell : party);
     bool down = i == pressedTab;    // pressed: darker, sunk by a pixel, light edge on the bottom
-    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, down ? rgb565(30, 25, 20) : lit ? on : face);
-    frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, down ? rgb565(90, 78, 60) : edge);
-    if (down) fillRect(fb, BOT_W, r.x + 1, r.y + r.h - 2, r.w - 2, 1, edge);
+    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, down ? kHPress : lit ? on : face);
+    frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, edge);
+    if (!down) fillRect(fb, BOT_W, r.x + 1, r.y + r.h - 2, r.w - 2, 1, kHShade);   // raised edge
     const char *label = (i == TAB_BAG && handFull()) ? "STOW" : TAB_LABEL[i];
     int len = (int)strlen(label);
     int adv = len * 8 > r.w - 4 ? 7 : 8;   // the 8x8 glyphs have a blank right column: 7 px spacing fits "RECAST"
     int lx = r.x + (r.w - len * adv + (adv == 7 ? 1 : 0)) / 2, ly = r.y + 7 + (down ? 1 : 0);
-    for (int k = 0; k < len; k++) { char one[2] = { label[k], 0 }; drawText(fb, BOT_W, lx + k * adv, ly, one, live ? text : dim); }
+    for (int k = 0; k < len; k++) { char one[2] = { label[k], 0 }; drawText(fb, BOT_W, lx + k * adv, ly, one, down ? rgb565(0, 0, 0) : live ? text : dim); }
     if (i == TAB_RECAST && haveSpell) {   // whose spell, and how many runes
       fillRect(fb, BOT_W, r.x + 2, r.y + 2, r.w - 4, 2, CHAMP_COLOR[lastCaster]);   // caster colour along the top
       for (int k = 0; k < 4 && lastSpell[lastCaster][k]; k++)
@@ -1265,6 +1277,7 @@ static u32 remapKeys(u32 m)
   return r;
 }
 static void saveSettings(void);
+static int portMenu(bool startOnExit);   // START: the house-style port menu
 
 // Buttons still held when a modal (manual, message box) closes must not leak into
 // the game: B that closed the manual would otherwise attack with champion 2.
@@ -1309,14 +1322,19 @@ bool n3ds_poll(void)
   }
 
   if ((held & KEY_START) && (held & KEY_SELECT) && (down & (KEY_START | KEY_SELECT))) {
-    if (n3ds_message_box("Quit to the Homebrew Launcher?\nUnsaved progress will be lost.",
-                         "Quit", true)) {
+    if (portMenu(true) == 3) {           // START + SELECT: straight to the exit question
       flushSettings(true);
       return false;
     }
     return true;
   }
-  if ((down & KEY_START) && !(held & KEY_SELECT)) n3ds_send_key(0x1b, 0x29);      // Esc: freeze
+  if ((down & KEY_START) && !(held & KEY_SELECT)) {   // house style: START = the port menu
+    const int r = portMenu(false);
+    if (r == 1) n3ds_send_key(0x1b, 0x29);                                        // FREEZE: Esc, the game's freeze
+    else if (r == 2) manualRequested = true;
+    else if (r == 3) { flushSettings(true); return false; }
+    return true;
+  }
   // These shortcuts replay clicks at fixed game-screen spots, so they only run where
   // those spots mean what we expect: the dungeon view (and the inventory for SELECT).
   if ((down & KEY_SELECT) && !(held & KEY_START) && layout != LAYOUT_FULL)
@@ -1536,8 +1554,8 @@ enum { MAN_HEAD_H = 20, MAN_LINE_H = 10, MAN_TEXT_Y = 26, MAN_VISIBLE = 20, MAN_
 
 static void manDrawTop(u16 *fb)
 {
-  const u16 bg = rgb565(16, 14, 12), band = rgb565(70, 52, 30), gold = rgb565(245, 200, 90);
-  const u16 text = rgb565(225, 220, 205), dim = rgb565(150, 140, 120), head = rgb565(130, 200, 255);
+  const u16 bg = kHBg, band = kHFace, gold = kHGold;
+  const u16 text = kHWhite, dim = kHGrey, head = rgb565(130, 200, 255);
   fillRect(fb, TOP_W, 0, 0, TOP_W, TOP_H, bg);
   fillRect(fb, TOP_W, 0, 0, TOP_W, MAN_HEAD_H, band);
   char title[64];
@@ -1547,7 +1565,7 @@ static void manDrawTop(u16 *fb)
   drawText(fb, TOP_W, MAN_X, 6, title, gold);
   char pos[16];
   snprintf(pos, sizeof pos, "%d/%d", manSection + 1, manSecCount);
-  drawText(fb, TOP_W, TOP_W - 6 - (int)strlen(pos) * 8, 6, pos, rgb565(230, 210, 170));
+  drawText(fb, TOP_W, TOP_W - 6 - (int)strlen(pos) * 8, 6, pos, kHWhite);
   for (int i = 0; i < MAN_VISIBLE; i++) {
     int li = manScroll + i;
     if (li >= manLineCount) break;
@@ -1566,7 +1584,7 @@ static void manDrawTop(u16 *fb)
     int trackY = MAN_TEXT_Y, trackH = MAN_VISIBLE * MAN_LINE_H;
     int thumbH = trackH * MAN_VISIBLE / manLineCount; if (thumbH < 8) thumbH = 8;
     int thumbY = trackY + (trackH - thumbH) * manScroll / (manLineCount - MAN_VISIBLE);
-    fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, rgb565(50, 46, 40));
+    fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, kHShade);
     fillRect(fb, TOP_W, TOP_W - 5, thumbY, 4, thumbH, gold);
   }
   drawText(fb, TOP_W, MAN_X, TOP_H - 11, leftyOn ? "STICKS SCROLL ABXY PICK L/R D-DOWN CLOSE" : "STICKS SCROLL  D-PAD PICK  L/R  B CLOSE", dim);
@@ -1585,15 +1603,15 @@ static int manPressed = -1;   // button under the finger, drawn pressed
 
 static void manDrawBottom(u16 *fb)
 {
-  const u16 face = rgb565(52, 44, 36), on = rgb565(120, 90, 40), edge = rgb565(150, 130, 100);
-  const u16 text = rgb565(235, 225, 195), focusC = rgb565(250, 215, 110);
-  fillRect(fb, BOT_W, 0, 0, BOT_W, BOT_H, rgb565(10, 10, 12));
+  const u16 face = kHFace, on = kHLit, edge = kHEdge;
+  const u16 text = kHWhite, focusC = kHGold;
+  fillRect(fb, BOT_W, 0, 0, BOT_W, BOT_H, kHBg);
   int count = manSecCount + 2;   // sections, CLOSE, LEFT HAND
   for (int i = 0; i < count; i++) {
     Rect r = manButton(i, count);
     bool close = i == manSecCount, down = i == manPressed;
     u16 fill = close ? rgb565(120, 30, 24) : (i == manSecCount + 1 ? (leftyOn ? on : face) : (i == manSection ? on : face));
-    if (down) fill = close ? rgb565(70, 16, 12) : rgb565(30, 25, 20);
+    if (down) fill = kHPress;
     fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, fill);
     frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, close ? rgb565(220, 90, 70) : edge);
     if (i == manFocus) {   // D-pad focus ring
@@ -1692,6 +1710,96 @@ static void showManual(void)
   }
   DBG("[n3ds] manual closed\n");
   presentPending = topDirty = true;
+}
+
+
+// ---------------------------------------------------------------------------
+// START: the port menu (house style, claude/3ds-look-and-feel.md)
+// RESUME, FREEZE (the game's own freeze: GAME FROZEN until you click), MANUAL,
+// LEFT HAND and EXIT GAME (asks first, focus on NO). The game does not run while
+// the menu is open. Returns: 0 resume, 1 freeze, 2 manual, 3 exit.
+// ---------------------------------------------------------------------------
+static int portMenu(bool startOnExit)
+{
+  enum { M_RESUME, M_FREEZE, M_MANUAL, M_LEFTY, M_EXIT, M_COUNT };
+  int focus = 0, pressed = -1, pressFrames = 0, chosen = -1;
+  bool confirm = startOnExit;
+  if (confirm) focus = 1;
+  bool waitRelease = true;   // the press that opened the menu may still be down
+  auto rectOf = [&](int i, int &x, int &y, int &w, int &h) {
+    if (!confirm) { const int y0 = 28, gap = 4; h = (BOT_H - 6 - y0 - gap * (M_COUNT - 1)) / M_COUNT; x = 6; w = BOT_W - 12; y = y0 + i * (h + gap); }
+    else { x = i == 0 ? 6 : 164; y = 120; w = 150; h = 112; }
+  };
+  while (aptMainLoop() && chosen < 0) {
+    hidScanInput();
+    const u32 kd = remapKeys(hidKeysDown()), kh = hidKeysHeld();
+    if (waitRelease && !(kh & (KEY_START | KEY_SELECT | KEY_TOUCH | KEY_A))) waitRelease = false;
+    const int nb = confirm ? 2 : M_COUNT;
+    int hit = -1;
+    if (!pressFrames && !waitRelease) {
+      if (kd & (KEY_DUP | KEY_DLEFT)) focus = (focus + nb - 1) % nb;
+      if (kd & (KEY_DDOWN | KEY_DRIGHT)) focus = (focus + 1) % nb;
+      if (kd & KEY_A) hit = focus;
+      if (kd & KEY_TOUCH) {
+        touchPosition t; hidTouchRead(&t);
+        for (int i = 0; i < nb; i++) { int x, y, w, h; rectOf(i, x, y, w, h); if (t.px >= x && t.px < x + w && t.py >= y && t.py < y + h) hit = i; }
+      }
+      if (kd & (KEY_B | KEY_START)) {
+        if (confirm && !startOnExit) { confirm = false; focus = M_EXIT; }
+        else chosen = M_RESUME;
+      }
+    }
+    if (hit >= 0) { playClick(); pressed = hit; pressFrames = 6; focus = hit; }
+    // draw: top card, bottom buttons
+    for (int eye = 0; eye < 2; eye++) {
+      u16 *t = (u16 *)gfxGetFramebuffer(GFX_TOP, eye ? GFX_RIGHT : GFX_LEFT, NULL, NULL);
+      fillRect(t, TOP_W, 0, 0, TOP_W, TOP_H, kHBg);
+      fillRect(t, TOP_W, 0, 0, TOP_W, 22, kHFace);
+      drawText(t, TOP_W, 8, 7, "DUNGEON MASTER / CHAOS STRIKES BACK", kHGold);
+      drawText(t, TOP_W, TOP_W - 8 - 6 * 8, 7, "PAUSED", kHWhite);
+      drawText(t, TOP_W, 8, 40, confirm ? "Exit the game?" : "The game waits while this menu is open.", kHWhite);
+      drawText(t, TOP_W, 8, 58, confirm ? "Anything you have not saved is lost." : "FREEZE keeps it frozen after the menu", kHGrey);
+      if (!confirm) drawText(t, TOP_W, 8, 72, "closes (GAME FROZEN): click to go on.", kHGrey);
+      drawHintStrip(t, TOP_W, confirm ? "A choose   B no" : "A choose   B / START resume");
+    }
+    u16 *b = (u16 *)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+    fillRect(b, BOT_W, 0, 0, BOT_W, BOT_H, kHBg);
+    fillRect(b, BOT_W, 0, 0, BOT_W, 22, kHFace);
+    drawText(b, BOT_W, 8, 7, confirm ? "EXIT GAME" : "MENU", kHGold);
+    if (confirm) { drawText(b, BOT_W, 8, 40, "Exit the game?", kHWhite); drawText(b, BOT_W, 8, 58, "Unsaved progress is lost.", kHGrey); }
+    for (int i = 0; i < nb; i++) {
+      int x, y, w, h; rectOf(i, x, y, w, h);
+      const bool pr = pressFrames > 0 && i == pressed;
+      const char *l = confirm ? (i == 0 ? "YES, EXIT" : "NO")
+                    : i == M_RESUME ? "RESUME" : i == M_FREEZE ? "FREEZE" : i == M_MANUAL ? "MANUAL"
+                    : i == M_LEFTY ? (leftyOn ? "LEFT HAND: ON" : "LEFT HAND: OFF") : "EXIT GAME";
+      fillRect(b, BOT_W, x, y, w, h, pr ? kHPress : kHFace);
+      frameRect(b, BOT_W, x, y, w, h, kHEdge);
+      if (!pr) fillRect(b, BOT_W, x + 1, y + h - 2, w - 2, 1, kHShade);
+      const int len = (int)strlen(l);
+      drawText(b, BOT_W, x + (w - len * 8) / 2 + (pr ? 1 : 0), y + (h - 8) / 2 + (pr ? 1 : 0), l, pr ? rgb565(0, 0, 0) : kHWhite);
+      if (i == focus && !pr) { frameRect(b, BOT_W, x - 1, y - 1, w + 2, h + 2, kHGold); frameRect(b, BOT_W, x - 2, y - 2, w + 4, h + 4, kHGold); }
+    }
+    gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
+    if (pressFrames > 0 && --pressFrames == 0) {
+      if (!confirm) {
+        if (pressed == M_LEFTY) { leftyOn = !leftyOn; saveSettings(); }
+        else if (pressed == M_EXIT) { confirm = true; focus = 1; }
+        else chosen = pressed;
+      } else if (pressed == 0) chosen = M_EXIT;
+      else if (startOnExit) chosen = M_RESUME;
+      else { confirm = false; focus = M_EXIT; }
+      pressed = -1;
+    }
+  }
+  while (aptMainLoop()) {   // let go before the game sees the buttons again
+    hidScanInput();
+    if (!(hidKeysHeld() & (KEY_TOUCH | KEY_A | KEY_B | KEY_START | KEY_SELECT))) break;
+    gspWaitForVBlank();
+  }
+  presentPending = topDirty = true;
+  armSuppress = true;
+  return chosen == M_FREEZE ? 1 : chosen == M_MANUAL ? 2 : chosen == M_EXIT ? 3 : 0;
 }
 
 // ---------------------------------------------------------------------------
