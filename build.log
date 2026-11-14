@@ -1,0 +1,355 @@
+== csb-3ds: checking toolchain
+== building SDL2 for 3DS (release-2.30.9, one-time, a few minutes)
+Note: switching to 'c98c4fbff6d8f3016a3ce6685bf8f43433c3efcc'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+CMake Deprecation Warning at CMakeLists.txt:8 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at CMakeLists.txt:3245 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+[  1%] Generating include/SDL2/SDL.h
+[  1%] Generating include/SDL2/SDL_assert.h
+[  1%] Generating include/SDL2/SDL_audio.h
+[  2%] Generating include/SDL2/SDL_atomic.h
+[  3%] Generating include/SDL2/SDL_bits.h
+[  3%] Generating include/SDL2/SDL_clipboard.h
+[  3%] Generating include/SDL2/SDL_blendmode.h
+[  4%] Generating include/SDL2/SDL_copying.h
+[  5%] Generating include/SDL2/SDL_egl.h
+[  5%] Generating include/SDL2/SDL_cpuinfo.h
+[  5%] Generating include/SDL2/SDL_endian.h
+[  5%] Generating include/SDL2/SDL_error.h
+[  6%] Generating include/SDL2/SDL_filesystem.h
+[  7%] Generating include/SDL2/SDL_events.h
+[  7%] Generating include/SDL2/SDL_gamecontroller.h
+[  7%] Generating include/SDL2/SDL_gesture.h
+[  8%] Generating include/SDL2/SDL_guid.h
+[  8%] Generating include/SDL2/SDL_hidapi.h
+[  8%] Generating include/SDL2/SDL_haptic.h
+[  9%] Generating include/SDL2/SDL_hints.h
+[  9%] Generating include/SDL2/SDL_joystick.h
+[ 10%] Generating include/SDL2/SDL_keycode.h
+[ 10%] Generating include/SDL2/SDL_keyboard.h
+[ 10%] Generating include/SDL2/SDL_loadso.h
+[ 11%] Generating include/SDL2/SDL_log.h
+[ 11%] Generating include/SDL2/SDL_locale.h
+[ 12%] Generating include/SDL2/SDL_main.h
+[ 12%] Generating include/SDL2/SDL_messagebox.h
+[ 12%] Generating include/SDL2/SDL_metal.h
+[ 12%] Generating include/SDL2/SDL_mouse.h
+[ 13%] Generating include/SDL2/SDL_mutex.h
+[ 14%] Generating include/SDL2/SDL_misc.h
+[ 14%] Generating include/SDL2/SDL_name.h
+[ 15%] Generating include/SDL2/SDL_opengl_glext.h
+[ 15%] Generating include/SDL2/SDL_opengl.h
+[ 15%] Generating include/SDL2/SDL_opengles.h
+[ 15%] Generating include/SDL2/SDL_opengles2_gl2.h
+[ 16%] Generating include/SDL2/SDL_opengles2.h
+[ 17%] Generating include/SDL2/SDL_opengles2_gl2ext.h
+[ 17%] Generating include/SDL2/SDL_opengles2_gl2platform.h
+[ 17%] Generating include/SDL2/SDL_opengles2_khrplatform.h
+[ 18%] Generating include/SDL2/SDL_pixels.h
+[ 18%] Generating include/SDL2/SDL_platform.h
+[ 19%] Generating include/SDL2/SDL_power.h
+[ 19%] Generating include/SDL2/SDL_quit.h
+[ 20%] Generating include/SDL2/SDL_rect.h
+[ 20%] Generating include/SDL2/SDL_render.h
+[ 20%] Generating include/SDL2/SDL_rwops.h
+[ 22%] Generating include/SDL2/SDL_scancode.h
+[ 22%] Generating include/SDL2/SDL_shape.h
+[ 22%] Generating include/SDL2/SDL_sensor.h
+[ 22%] Generating include/SDL2/SDL_stdinc.h
+[ 22%] Generating include/SDL2/SDL_surface.h
+[ 22%] Generating include/SDL2/SDL_syswm.h
+[ 23%] Generating include/SDL2/SDL_system.h
+[ 24%] Generating include/SDL2/SDL_test.h
+[ 25%] Generating include/SDL2/SDL_test_common.h
+[ 25%] Generating include/SDL2/SDL_test_assert.h
+[ 25%] Generating include/SDL2/SDL_test_compare.h
+[ 25%] Generating include/SDL2/SDL_test_crc32.h
+[ 26%] Generating include/SDL2/SDL_test_fuzzer.h
+[ 26%] Generating include/SDL2/SDL_test_font.h
+[ 27%] Generating include/SDL2/SDL_test_harness.h
+[ 27%] Generating include/SDL2/SDL_test_images.h
+[ 27%] Generating include/SDL2/SDL_test_log.h
+[ 28%] Generating include/SDL2/SDL_test_md5.h
+[ 28%] Generating include/SDL2/SDL_test_memory.h
+[ 29%] Generating include/SDL2/SDL_test_random.h
+[ 29%] Generating include/SDL2/SDL_thread.h
+[ 30%] Generating include/SDL2/SDL_timer.h
+[ 30%] Generating include/SDL2/SDL_touch.h
+[ 30%] Generating include/SDL2/SDL_types.h
+[ 30%] Generating include/SDL2/SDL_video.h
+[ 31%] Generating include/SDL2/SDL_vulkan.h
+[ 32%] Generating include/SDL2/SDL_version.h
+[ 32%] Generating include/SDL2/begin_code.h
+[ 33%] Generating include/SDL2/close_code.h
+[ 33%] Built target sdl_headers_copy
+[ 34%] Building C object CMakeFiles/SDL2main.dir/src/main/n3ds/SDL_n3ds_main.o
+[ 34%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_assert.o
+[ 34%] Building C object CMakeFiles/SDL2-static.dir/src/SDL.o
+[ 35%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_dataqueue.o
+[ 35%] Linking C static library libSDL2main.a
+[ 35%] Built target SDL2main
+[ 36%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_guid.o
+[ 36%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_error.o
+[ 36%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_hints.o
+[ 36%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_list.o
+[ 37%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_log.o
+[ 37%] Building C object CMakeFiles/SDL2-static.dir/src/SDL_utils.o
+[ 38%] Building C object CMakeFiles/SDL2-static.dir/src/atomic/SDL_atomic.o
+[ 38%] Building C object CMakeFiles/SDL2-static.dir/src/atomic/SDL_spinlock.o
+[ 39%] Building C object CMakeFiles/SDL2-static.dir/src/audio/SDL_audio.o
+[ 39%] Building C object CMakeFiles/SDL2-static.dir/src/audio/SDL_audiodev.o
+[ 39%] Building C object CMakeFiles/SDL2-static.dir/src/audio/SDL_audiocvt.o
+[ 40%] Building C object CMakeFiles/SDL2-static.dir/src/audio/SDL_audiotypecvt.o
+[ 40%] Building C object CMakeFiles/SDL2-static.dir/src/audio/SDL_mixer.o
+[ 41%] Building C object CMakeFiles/SDL2-static.dir/src/audio/SDL_wave.o
+[ 41%] Building C object CMakeFiles/SDL2-static.dir/src/cpuinfo/SDL_cpuinfo.o
+[ 41%] Building C object CMakeFiles/SDL2-static.dir/src/dynapi/SDL_dynapi.o
+[ 42%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_clipboardevents.o
+[ 42%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_displayevents.o
+[ 43%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_dropevents.o
+[ 43%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_events.o
+[ 44%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_gesture.o
+[ 44%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_keyboard.o
+[ 44%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_keysym_to_scancode.o
+[ 45%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_mouse.o
+[ 45%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_quit.o
+[ 46%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_scancode_tables.o
+[ 46%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_touch.o
+[ 46%] Building C object CMakeFiles/SDL2-static.dir/src/events/SDL_windowevents.o
+[ 47%] Building C object CMakeFiles/SDL2-static.dir/src/events/imKStoUCS.o
+[ 47%] Building C object CMakeFiles/SDL2-static.dir/src/file/SDL_rwops.o
+[ 48%] Building C object CMakeFiles/SDL2-static.dir/src/haptic/SDL_haptic.o
+[ 48%] Building C object CMakeFiles/SDL2-static.dir/src/hidapi/SDL_hidapi.o
+[ 49%] Building C object CMakeFiles/SDL2-static.dir/src/joystick/SDL_gamecontroller.o
+[ 49%] Building C object CMakeFiles/SDL2-static.dir/src/joystick/SDL_joystick.o
+[ 49%] Building C object CMakeFiles/SDL2-static.dir/src/joystick/SDL_steam_virtual_gamepad.o
+[ 50%] Building C object CMakeFiles/SDL2-static.dir/src/joystick/controller_type.o
+[ 50%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_atan2.o
+[ 51%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_exp.o
+[ 51%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_fmod.o
+[ 51%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_log.o
+[ 52%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_log10.o
+[ 52%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_pow.o
+[ 53%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_rem_pio2.o
+[ 54%] Building C object CMakeFiles/SDL2-static.dir/src/libm/k_cos.o
+[ 54%] Building C object CMakeFiles/SDL2-static.dir/src/libm/e_sqrt.o
+[ 54%] Building C object CMakeFiles/SDL2-static.dir/src/libm/k_rem_pio2.o
+[ 54%] Building C object CMakeFiles/SDL2-static.dir/src/libm/k_sin.o
+[ 55%] Building C object CMakeFiles/SDL2-static.dir/src/libm/k_tan.o
+[ 55%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_atan.o
+[ 56%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_copysign.o
+[ 56%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_cos.o
+[ 57%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_fabs.o
+[ 57%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_floor.o
+[ 57%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_scalbn.o
+[ 58%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_sin.o
+[ 58%] Building C object CMakeFiles/SDL2-static.dir/src/libm/s_tan.o
+[ 58%] Building C object CMakeFiles/SDL2-static.dir/src/misc/SDL_url.o
+[ 59%] Building C object CMakeFiles/SDL2-static.dir/src/locale/SDL_locale.o
+[ 59%] Building C object CMakeFiles/SDL2-static.dir/src/power/SDL_power.o
+[ 60%] Building C object CMakeFiles/SDL2-static.dir/src/render/SDL_d3dmath.o
+[ 60%] Building C object CMakeFiles/SDL2-static.dir/src/render/SDL_render.o
+[ 61%] Building C object CMakeFiles/SDL2-static.dir/src/render/SDL_yuv_sw.o
+[ 61%] Building C object CMakeFiles/SDL2-static.dir/src/render/direct3d/SDL_render_d3d.o
+[ 62%] Building C object CMakeFiles/SDL2-static.dir/src/render/direct3d/SDL_shaders_d3d.o
+[ 62%] Building C object CMakeFiles/SDL2-static.dir/src/render/direct3d11/SDL_render_d3d11.o
+[ 62%] Building C object CMakeFiles/SDL2-static.dir/src/render/direct3d11/SDL_shaders_d3d11.o
+[ 63%] Building C object CMakeFiles/SDL2-static.dir/src/render/direct3d12/SDL_render_d3d12.o
+[ 63%] Building C object CMakeFiles/SDL2-static.dir/src/render/direct3d12/SDL_shaders_d3d12.o
+[ 64%] Building C object CMakeFiles/SDL2-static.dir/src/render/opengl/SDL_render_gl.o
+[ 64%] Building C object CMakeFiles/SDL2-static.dir/src/render/opengl/SDL_shaders_gl.o
+[ 64%] Building C object CMakeFiles/SDL2-static.dir/src/render/opengles/SDL_render_gles.o
+[ 65%] Building C object CMakeFiles/SDL2-static.dir/src/render/opengles2/SDL_shaders_gles2.o
+[ 66%] Building C object CMakeFiles/SDL2-static.dir/src/render/opengles2/SDL_render_gles2.o
+[ 66%] Building C object CMakeFiles/SDL2-static.dir/src/render/ps2/SDL_render_ps2.o
+[ 67%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_blendfillrect.o
+[ 67%] Building C object CMakeFiles/SDL2-static.dir/src/render/psp/SDL_render_psp.o
+[ 67%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_blendline.o
+[ 67%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_blendpoint.o
+[ 68%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_drawline.o
+[ 68%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_drawpoint.o
+[ 69%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_render_sw.o
+[ 69%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_rotate.o
+[ 69%] Building C object CMakeFiles/SDL2-static.dir/src/render/software/SDL_triangle.o
+[ 70%] Building C object CMakeFiles/SDL2-static.dir/src/render/vitagxm/SDL_render_vita_gxm.o
+[ 70%] Building C object CMakeFiles/SDL2-static.dir/src/render/vitagxm/SDL_render_vita_gxm_memory.o
+[ 71%] Building C object CMakeFiles/SDL2-static.dir/src/render/vitagxm/SDL_render_vita_gxm_tools.o
+[ 71%] Building C object CMakeFiles/SDL2-static.dir/src/sensor/SDL_sensor.o
+[ 72%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_crc16.o
+[ 72%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_crc32.o
+[ 72%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_getenv.o
+[ 73%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_iconv.o
+[ 73%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_malloc.o
+[ 74%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_mslibc.o
+[ 74%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_qsort.o
+[ 75%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_stdlib.o
+[ 75%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_string.o
+[ 75%] Building C object CMakeFiles/SDL2-static.dir/src/stdlib/SDL_strtokr.o
+[ 76%] Building C object CMakeFiles/SDL2-static.dir/src/thread/SDL_thread.o
+[ 76%] Building C object CMakeFiles/SDL2-static.dir/src/timer/SDL_timer.o
+[ 77%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_RLEaccel.o
+[ 77%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit.o
+[ 77%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit_0.o
+[ 78%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit_1.o
+[ 78%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit_A.o
+[ 79%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit_N.o
+[ 79%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit_auto.o
+[ 80%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit_copy.o
+[ 80%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_blit_slow.o
+[ 80%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_bmp.o
+[ 81%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_clipboard.o
+[ 81%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_egl.o
+[ 82%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_fillrect.o
+[ 82%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_pixels.o
+[ 82%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_rect.o
+[ 83%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_shape.o
+[ 83%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_stretch.o
+[ 84%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_surface.o
+[ 84%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_video.o
+[ 85%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_vulkan_utils.o
+[ 85%] Building C object CMakeFiles/SDL2-static.dir/src/video/SDL_yuv.o
+[ 85%] Building C object CMakeFiles/SDL2-static.dir/src/video/yuv2rgb/yuv_rgb_lsx.o
+[ 86%] Building C object CMakeFiles/SDL2-static.dir/src/video/yuv2rgb/yuv_rgb_sse.o
+[ 87%] Building C object CMakeFiles/SDL2-static.dir/src/video/yuv2rgb/yuv_rgb_std.o
+[ 87%] Building C object CMakeFiles/SDL2-static.dir/src/audio/dummy/SDL_dummyaudio.o
+[ 87%] Building C object CMakeFiles/SDL2-static.dir/src/audio/disk/SDL_diskaudio.o
+[ 87%] Building C object CMakeFiles/SDL2-static.dir/src/joystick/virtual/SDL_virtualjoystick.o
+[ 88%] Building C object CMakeFiles/SDL2-static.dir/src/video/dummy/SDL_nullevents.o
+[ 88%] Building C object CMakeFiles/SDL2-static.dir/src/video/dummy/SDL_nullframebuffer.o
+[ 89%] Building C object CMakeFiles/SDL2-static.dir/src/video/dummy/SDL_nullvideo.o
+[ 89%] Building C object CMakeFiles/SDL2-static.dir/src/video/offscreen/SDL_offscreenevents.o
+[ 90%] Building C object CMakeFiles/SDL2-static.dir/src/video/offscreen/SDL_offscreenframebuffer.o
+[ 90%] Building C object CMakeFiles/SDL2-static.dir/src/video/offscreen/SDL_offscreenopengles.o
+[ 90%] Building C object CMakeFiles/SDL2-static.dir/src/video/offscreen/SDL_offscreenvideo.o
+[ 91%] Building C object CMakeFiles/SDL2-static.dir/src/video/offscreen/SDL_offscreenwindow.o
+[ 91%] Building C object CMakeFiles/SDL2-static.dir/src/audio/n3ds/SDL_n3dsaudio.o
+[ 92%] Building C object CMakeFiles/SDL2-static.dir/src/filesystem/n3ds/SDL_sysfilesystem.o
+[ 92%] Building C object CMakeFiles/SDL2-static.dir/src/joystick/n3ds/SDL_sysjoystick.o
+[ 92%] Building C object CMakeFiles/SDL2-static.dir/src/power/n3ds/SDL_syspower.o
+[ 93%] Building C object CMakeFiles/SDL2-static.dir/src/thread/n3ds/SDL_syscond.o
+[ 93%] Building C object CMakeFiles/SDL2-static.dir/src/thread/n3ds/SDL_sysmutex.o
+[ 94%] Building C object CMakeFiles/SDL2-static.dir/src/thread/n3ds/SDL_syssem.o
+[ 94%] Building C object CMakeFiles/SDL2-static.dir/src/thread/n3ds/SDL_systhread.o
+[ 95%] Building C object CMakeFiles/SDL2-static.dir/src/thread/generic/SDL_systls.o
+[ 95%] Building C object CMakeFiles/SDL2-static.dir/src/thread/generic/SDL_syscond.o
+[ 95%] Building C object CMakeFiles/SDL2-static.dir/src/timer/n3ds/SDL_systimer.o
+[ 96%] Building C object CMakeFiles/SDL2-static.dir/src/sensor/n3ds/SDL_n3dssensor.o
+[ 96%] Building C object CMakeFiles/SDL2-static.dir/src/video/n3ds/SDL_n3dsevents.o
+[ 97%] Building C object CMakeFiles/SDL2-static.dir/src/video/n3ds/SDL_n3dsframebuffer.o
+[ 97%] Building C object CMakeFiles/SDL2-static.dir/src/video/n3ds/SDL_n3dsswkb.o
+[ 98%] Building C object CMakeFiles/SDL2-static.dir/src/video/n3ds/SDL_n3dstouch.o
+[ 98%] Building C object CMakeFiles/SDL2-static.dir/src/video/n3ds/SDL_n3dsvideo.o
+[ 98%] Building C object CMakeFiles/SDL2-static.dir/src/locale/n3ds/SDL_syslocale.o
+[ 99%] Building C object CMakeFiles/SDL2-static.dir/src/file/n3ds/SDL_rwopsromfs.o
+[ 99%] Building C object CMakeFiles/SDL2-static.dir/src/haptic/dummy/SDL_syshaptic.o
+[100%] Building C object CMakeFiles/SDL2-static.dir/src/loadso/dummy/SDL_sysloadso.o
+[100%] Building C object CMakeFiles/SDL2-static.dir/src/misc/dummy/SDL_sysurl.o
+[100%] Linking C static library libSDL2.a
+[100%] Built target SDL2-static
+== fetching CSBwin source (ee93fec75e5c2712139fa34a3192f0835da99262)
+== applying 3DS patch
+[csb-3ds] CSBTypes.h: patched
+[csb-3ds] Chaos.cpp: patched
+[csb-3ds] Hint.cpp: patched
+[csb-3ds] Magic.cpp: patched
+[csb-3ds] CSBlinux.cpp: patched
+[csb-3ds] LinCSBUI.cpp: patched
+[csb-3ds] SoundMixer.cpp: patched
+[csb-3ds] CSBUI.cpp: patched
+[csb-3ds] CSBCode.cpp: patched
+[csb-3ds] SaveGame.cpp: patched
+== building
+make: Entering directory '/__w/csb-3ds/csb-3ds/build/CSB/src'
+  CXX DSA.cpp
+  CXX data.cpp
+  CXX Code11f52.cpp
+  CXX Graphics.cpp
+  CXX Magic.cpp
+  CXX CSBCode.cpp
+  CXX Timer.cpp
+  CXX Character.cpp
+  CXX system.cpp
+  CXX SmartDiscard.cpp
+  CXX VBL.cpp
+  CXX Mouse.cpp
+  CXX Recording.cpp
+  CXX LinCSBUI.cpp
+  CXX CSBlinux.cpp
+  CXX Code51a4.cpp
+  CXX CSBUI.cpp
+  CXX MoveObject.cpp
+  CXX Hint.cpp
+  CXX Monster.cpp
+  CXX Code17818.cpp
+  CXX Viewport.cpp
+  CXX AsciiDump.cpp
+  CXX Menu.cpp
+  CXX Chaos.cpp
+  CXX SaveGame.cpp
+  CXX Translation.cpp
+  CXX Bitmaps.cpp
+  CXX md5C.cpp
+  CXX utility.cpp
+  CXX WinScreen.cpp
+  CXX Code13ea4.cpp
+  CXX Codea59a.cpp
+  CXX RC4.cpp
+  CXX Attack.cpp
+  CXX Sound.cpp
+  CXX Code1f9e6.cpp
+  CXX Code390e.cpp
+  CXX Code222ea.cpp
+  CXX Statistics.cpp
+  CXX SoundMixer.cpp
+  CXX n3ds_platform.cpp
+  CXX imgui/imgui.cpp
+  CXX imgui/imgui_draw.cpp
+  CXX imgui/imgui_impl_sdl2.cpp
+  CXX imgui/imgui_tables.cpp
+  CXX imgui/imgui_widgets.cpp
+  CXX imgui/imgui_impl_sdlrenderer2.cpp
+  CXX n3ds_filebrowser_stub.cpp
+  CC  confile.c
+  CC  sdl_sound/SDL_sound.c
+  CC  sdl_sound/SDL_sound_mp3.c
+  CC  sdl_sound/SDL_sound_raw.c
+  CC  sdl_sound/SDL_sound_wav.c
+  CC  fnmatch/fnmatch.c
+  CC  selftest.c
+  LD  csb3ds.elf
+Built csb3ds.3dsx
+make: Leaving directory '/__w/csb-3ds/csb-3ds/build/CSB/src'
+
+Done: out/csb3ds.3dsx and out/csb.cfg
+Copy both (plus GRAPHICS.DAT and DUNGEON.DAT) to SD:/3ds/csb3ds/
