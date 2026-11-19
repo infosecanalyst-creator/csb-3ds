@@ -4,7 +4,7 @@ Dungeon Master for the New 3DS plays the original Dungeon Master and Chaos Strik
 You lead up to four champions through a real-time dungeon. Monsters move while you think, food and water run down, and torches burn out. The game never pauses unless you open the START menu, freeze it (START, then FREEZE) or open this manual.
 
 ## Reading this manual
-- Circle Pad or C-Stick: scroll the text (hold to keep scrolling).
+- Circle Pad or C-Stick: scroll the text (hold to keep scrolling). You can also drag the stylus up or down on the touch screen.
 - D-pad: move between the section buttons on the touch screen. A section opens as you pick it; on CLOSE, press A.
 - L and R: previous and next section.
 - Tap a section to open it.

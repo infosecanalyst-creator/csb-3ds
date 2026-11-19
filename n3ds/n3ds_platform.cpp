@@ -1712,21 +1712,43 @@ static void showManual(void)
     else if (kd & KEY_DDOWN && focus + 1 < count && (focus % 2) == 0) focus++;   // odd count: last row
     if (kd & KEY_DUP && focus - 2 >= 0) focus -= 2;
     if (focus != manFocus) { manFocus = focus; playClick(); if (focus < manSecCount) sec = focus; }
+    // Touch: a tap presses a button (acting on release); a touch that moves more than 6 px
+    // drags the text instead (rule 13), a line per MAN_LINE_H px, with a little momentum.
+    static int tx0, ty0, tyLast, dragAcc;
+    static bool dragging;
+    static float mom;
     if (kh & KEY_TOUCH) {
       touchPosition t;
       hidTouchRead(&t);
-      int hit = -1;
-      for (int i = 0; i < count; i++) if (inRect(manButton(i, count), t.px, t.py)) hit = i;
-      if (!waitRelease && hit >= 0) { playClick(); manFocus = hit; waitRelease = true; }
-      manPressed = waitRelease ? (hit == manFocus ? hit : -1) : -1;
+      if (kd & KEY_TOUCH) { tx0 = t.px; ty0 = t.py; tyLast = t.py; dragAcc = 0; dragging = false; mom = 0; }
+      if (!dragging && !waitRelease && (abs(t.px - tx0) > 6 || abs(t.py - ty0) > 6)) dragging = true;
+      if (dragging) {
+        manPressed = -1;
+        dragAcc += tyLast - t.py;
+        mom = (float)(tyLast - t.py);
+      } else {
+        int hit = -1;
+        for (int i = 0; i < count; i++) if (inRect(manButton(i, count), t.px, t.py)) hit = i;
+        if (!waitRelease && hit >= 0) { playClick(); manFocus = hit; waitRelease = true; }
+        manPressed = waitRelease ? (hit == manFocus ? hit : -1) : -1;
+      }
+      tyLast = t.py;
     } else {
       if (manPressed == manSecCount) { manPressed = -1; break; }   // CLOSE acts on release
       if (manPressed == manSecCount + 1) { leftyOn = !leftyOn; saveSettings(); }   // LEFT HAND flips, stays open
       else if (manPressed >= 0) sec = manPressed;
       manPressed = -1;
       waitRelease = false;
+      dragging = false;
+      if (mom > 0.5f || mom < -0.5f) { dragAcc += (int)(mom * 2.0f); mom *= 0.88f; } else mom = 0;
     }
-    if (manPressed >= 0 && manPressed < manSecCount) sec = manPressed;
+    if (dragAcc >= MAN_LINE_H || dragAcc <= -MAN_LINE_H) {
+      manScroll += dragAcc / MAN_LINE_H;
+      dragAcc %= MAN_LINE_H;
+      int maxScroll = manLineCount > MAN_VISIBLE ? manLineCount - MAN_VISIBLE : 0;
+      if (manScroll < 0) manScroll = 0;
+      if (manScroll > maxScroll) manScroll = maxScroll;
+    }
     if (sec != manSection) { manSection = sec; manScroll = 0; manLayout(sec); if (manFocus != manSecCount) manFocus = sec; }
     int dir = (kh & SCROLL_DOWN) ? 1 : (kh & SCROLL_UP) ? -1 : 0;
     if (dir) {
