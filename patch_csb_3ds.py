@@ -242,6 +242,24 @@ void n3ds_engine_champion_stats(int i, int out[6])
   out[2] = c.Stamina(); out[3] = c.MaxStamina();
   out[4] = c.Mana();    out[5] = c.MaxMana();
 }
+
+// Exit save (EXIT GAME): the engine's own direct save path (the one its "Save game"
+// file dialog uses) aimed at the last save slot, so nothing else is overwritten.
+// The backup name is set too: otherwise the old slot-4 file would be renamed over
+// the .BAK of whichever slot was loaded last.
+static char n3dsExitSaveName[] = "Csbgame4.dat";
+static char n3dsExitSaveBak[] = "Csbgame4.BAK";
+bool n3ds_engine_exit_save_possible(void)
+{
+  return !disableSaves && d.NumCharacter > 0 && d.PotentialCharacterOrdinal == 0;
+}
+void n3ds_engine_exit_save_start(void)
+{
+  opened_file = n3dsExitSaveName;
+  d.Pointer22980 = n3dsExitSaveBak;
+  skipToSavenPlay = true;
+  DispatchCSB(st_DisplayDiskMenu);
+}
 #endif // __3DS__
 '''
     return t
@@ -395,6 +413,12 @@ def patch_savegame(t):
              '#ifdef __3DS__\n  n3ds_automap_loaded(NULL);   /* blank unless the save has a map */\n#endif\n'
              '  D0W = OPEN(d.SaveGameFilename,"rb");\n'
              '#ifdef __3DS__\n  if (D0W >= 0) n3ds_automap_loaded(d.SaveGameFilename);\n#endif\n')
+    t = edit(t, "SaveGame exit save done",
+             "    CLOSE(d.datafileHandle);\n  // ****",
+             "    CLOSE(d.datafileHandle);\n#ifdef __3DS__\n    n3ds_exit_save_result(1);\n#endif\n  // ****")
+    t = edit(t, "SaveGame exit save failed",
+             "tag01e4f0:\n  CLOSE(d.datafileHandle);\n",
+             "tag01e4f0:\n  CLOSE(d.datafileHandle);\n#ifdef __3DS__\n  n3ds_exit_save_result(-1);\n#endif\n")
     return edit(t, "SaveGame save map",
                 '  if (d.datafileHandle >= 0)\n  {\n',
                 '  if (d.datafileHandle >= 0)\n  {\n'

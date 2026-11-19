@@ -1288,9 +1288,50 @@ static const u32 GAME_KEYS = KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R | KEY
                              KEY_CPAD_LEFT | KEY_CPAD_RIGHT | KEY_CSTICK_LEFT | KEY_CSTICK_RIGHT | KEY_START | KEY_SELECT;
 
 static void flushSettings(bool force);
+// Exit save: 0 none, 1 saving, 2 written, 3 failed (the engine shows its own message;
+// the next EXIT GAME then exits without trying again).
+static int exitSaveState = 0;
+static u64 exitSaveT0 = 0;
+void n3ds_exit_save_result(int result)
+{
+  if (exitSaveState == 1) exitSaveState = result > 0 ? 2 : 3;
+}
+static bool exitSaveAvailable(void)
+{
+  // Only from normal play (dungeon or inventory), never over one of the engine's
+  // own menus, the champion mirror or the title screens.
+  return exitSaveState == 0 && n3ds_engine_exit_save_possible()
+      && (n3ds_engine_in_dungeon_view() || n3ds_engine_inventory_open());
+}
+// EXIT GAME was confirmed. Returns true to quit now, false to keep the game running
+// while it saves (n3ds_poll quits once the engine says the file is written).
+static bool beginExit(void)
+{
+  if (exitSaveAvailable()) {
+    printf("[n3ds] exit save to slot 4\n");
+    exitSaveState = 1;
+    exitSaveT0 = svcGetSystemTick();
+    n3ds_engine_exit_save_start();
+    return false;
+  }
+  flushSettings(true);
+  return true;
+}
+
 bool n3ds_poll(void)
 {
   if (!aptMainLoop()) { flushSettings(true); return false; }
+  if (exitSaveState == 1) {             // saving: the engine runs, input waits
+    hidScanInput();
+    if (svcGetSystemTick() - exitSaveT0 > (u64)SYSCLOCK_ARM11 * 15) {
+      printf("[n3ds] exit save: no answer after 15 s, exiting\n");
+      flushSettings(true);
+      return false;
+    }
+    return true;
+  }
+  if (exitSaveState == 2) { printf("[n3ds] exit save written\n"); flushSettings(true); return false; }
+  if (exitSaveState == 3) { printf("[n3ds] exit save FAILED\n"); exitSaveState = 4; }
   flushSettings(false);
   hidScanInput();
   u32 down = remapKeys(hidKeysDown()), held = remapKeys(hidKeysHeld());
@@ -1322,17 +1363,14 @@ bool n3ds_poll(void)
   }
 
   if ((held & KEY_START) && (held & KEY_SELECT) && (down & (KEY_START | KEY_SELECT))) {
-    if (portMenu(true) == 3) {           // START + SELECT: straight to the exit question
-      flushSettings(true);
-      return false;
-    }
+    if (portMenu(true) == 3) return !beginExit();   // START + SELECT: straight to the exit question
     return true;
   }
   if ((down & KEY_START) && !(held & KEY_SELECT)) {   // house style: START = the port menu
     const int r = portMenu(false);
     if (r == 1) n3ds_send_key(0x1b, 0x29);                                        // FREEZE: Esc, the game's freeze
     else if (r == 2) manualRequested = true;
-    else if (r == 3) { flushSettings(true); return false; }
+    else if (r == 3) return !beginExit();
     return true;
   }
   // These shortcuts replay clicks at fixed game-screen spots, so they only run where
@@ -1725,6 +1763,7 @@ static int portMenu(bool startOnExit)
   int focus = 0, pressed = -1, pressFrames = 0, chosen = -1;
   bool confirm = startOnExit;
   if (confirm) focus = 1;
+  const bool exitSave = exitSaveAvailable();
   bool waitRelease = true;   // the press that opened the menu may still be down
   auto rectOf = [&](int i, int &x, int &y, int &w, int &h) {
     if (!confirm) { const int y0 = 28, gap = 4; h = (BOT_H - 6 - y0 - gap * (M_COUNT - 1)) / M_COUNT; x = 6; w = BOT_W - 12; y = y0 + i * (h + gap); }
@@ -1758,7 +1797,9 @@ static int portMenu(bool startOnExit)
       drawText(t, TOP_W, 8, 7, "DUNGEON MASTER / CHAOS STRIKES BACK", kHGold);
       drawText(t, TOP_W, TOP_W - 8 - 6 * 8, 7, "PAUSED", kHWhite);
       drawText(t, TOP_W, 8, 40, confirm ? "Exit the game?" : "The game waits while this menu is open.", kHWhite);
-      drawText(t, TOP_W, 8, 58, confirm ? "Anything you have not saved is lost." : "FREEZE keeps it frozen after the menu", kHGrey);
+      drawText(t, TOP_W, 8, 58, !confirm ? "FREEZE keeps it frozen after the menu"
+                                : exitSave ? "The game is saved first to slot 4." : "Anything you have not saved is lost.", kHGrey);
+      if (confirm && exitSave) drawText(t, TOP_W, 8, 72, "Load it from slot 4 next time.", kHGrey);
       if (!confirm) drawText(t, TOP_W, 8, 72, "closes (GAME FROZEN): click to go on.", kHGrey);
       drawHintStrip(t, TOP_W, confirm ? "A choose   B no" : "A choose   B / START resume");
     }
@@ -1766,7 +1807,7 @@ static int portMenu(bool startOnExit)
     fillRect(b, BOT_W, 0, 0, BOT_W, BOT_H, kHBg);
     fillRect(b, BOT_W, 0, 0, BOT_W, 22, kHFace);
     drawText(b, BOT_W, 8, 7, confirm ? "EXIT GAME" : "MENU", kHGold);
-    if (confirm) { drawText(b, BOT_W, 8, 40, "Exit the game?", kHWhite); drawText(b, BOT_W, 8, 58, "Unsaved progress is lost.", kHGrey); }
+    if (confirm) { drawText(b, BOT_W, 8, 40, "Exit the game?", kHWhite); drawText(b, BOT_W, 8, 58, exitSave ? "Saved first to slot 4." : "Unsaved progress is lost.", kHGrey); }
     for (int i = 0; i < nb; i++) {
       int x, y, w, h; rectOf(i, x, y, w, h);
       const bool pr = pressFrames > 0 && i == pressed;

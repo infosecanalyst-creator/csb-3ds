@@ -70,6 +70,10 @@ void n3ds_mix_click(short *stream, int frames, int channels, int freq);
 
 // Called from the patched SaveGame.cpp: the auto-map is kept beside each save.
 void n3ds_automap_saved(const char *saveName, const char *backupName);
+// Exit save (EXIT GAME saves to slot 4 first when the party is in the dungeon).
+bool n3ds_engine_exit_save_possible(void);
+void n3ds_engine_exit_save_start(void);
+void n3ds_exit_save_result(int result);   // from the engine: 1 written, -1 failed
 void n3ds_automap_loaded(const char *saveName);   // NULL = new game
 
 // Called from the patched Magic.cpp each time a spell is cast (RECAST button).
