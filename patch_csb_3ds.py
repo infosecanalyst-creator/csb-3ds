@@ -251,7 +251,7 @@ static char n3dsExitSaveName[] = "Csbgame4.dat";
 static char n3dsExitSaveBak[] = "Csbgame4.BAK";
 bool n3ds_engine_exit_save_possible(void)
 {
-  return !disableSaves && d.PotentialCharacterOrdinal == 0;   // TEST ONLY: no party needed
+  return !disableSaves && d.NumCharacter > 0 && d.PotentialCharacterOrdinal == 0;
 }
 void n3ds_engine_exit_save_start(void)
 {
