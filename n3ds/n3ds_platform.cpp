@@ -1010,8 +1010,11 @@ static unsigned lastVitalsHash = 0;
 static volatile u32 vblankCount = 0;
 static void onVBlank(void *) { vblankCount++; }
 
+static bool homeClose = false;   // see n3ds_poll
 static void flushPresent(bool force)
 {
+  if (homeClose) { presentPending = false; return; }   // closing from HOME: screens are not ours
+
   // At most one present per display frame. A swap takes effect at the next
   // vertical blank; until then the "back" buffer is still the one on screen, so
   // drawing into it flickers. A VBlank counter (bumped by a GSP event callback)
@@ -1318,13 +1321,41 @@ static bool beginExit(void)
   return true;
 }
 
+// HOME -> Close (or power off): aptMainLoop() returns false from now on. Run the same
+// guarded exit save EXIT GAME does (same checks, same slot 4), let the engine write it
+// on this thread, then quit the normal way. Capped at 6 s so the system never waits long.
+// (homeClose is declared above flushPresent: nothing is drawn while closing.)
+// HOME pressed / lid closed: aptMainLoop() blocks this thread while suspended, so the
+// game is paused. On the way back, buttons still held must not act and the screens redraw.
+static volatile bool aptResumed = false;
+static aptHookCookie aptCookie;
+static void onAptHook(APT_HookType hook, void *param)
+{
+  (void)param;
+  if (hook == APTHOOK_ONRESTORE || hook == APTHOOK_ONWAKEUP) aptResumed = true;   // flag only; the main loop acts
+}
+
 bool n3ds_poll(void)
 {
-  if (!aptMainLoop()) { flushSettings(true); return false; }
+  if (!aptMainLoop() && !homeClose) {
+    homeClose = true;
+    if (exitSaveState == 0 && exitSaveAvailable()) {
+      printf("[n3ds] HOME close: exit save to slot 4\n");
+      exitSaveState = 1;
+      exitSaveT0 = svcGetSystemTick();
+      n3ds_engine_exit_save_start();
+    } else printf("[n3ds] HOME close: no exit save (state %d)\n", exitSaveState);
+  }
+  if (homeClose && exitSaveState != 1 && exitSaveState != 2) { flushSettings(true); return false; }
+  if (aptResumed) {
+    aptResumed = false;
+    armSuppress = true;                 // keys held through the HOME menu wait for a release
+    presentPending = topDirty = true;
+  }
   if (exitSaveState == 1) {             // saving: the engine runs, input waits
     hidScanInput();
-    if (svcGetSystemTick() - exitSaveT0 > (u64)SYSCLOCK_ARM11 * 15) {
-      printf("[n3ds] exit save: no answer after 15 s, exiting\n");
+    if (svcGetSystemTick() - exitSaveT0 > (u64)SYSCLOCK_ARM11 * (homeClose ? 6 : 15)) {
+      printf("[n3ds] exit save: no answer in time, exiting\n");
       flushSettings(true);
       return false;
     }
@@ -2024,6 +2055,7 @@ void n3ds_init(void)
   gfxInitDefault();
   setupScreens();
   gspSetEventCallback(GSPGPU_EVENT_VBlank0, onVBlank, NULL, false);
+  aptHook(&aptCookie, onAptHook, NULL);
   buildDepthMap();
   memset(n3ds_st_buffer, 0, sizeof(n3ds_st_buffer));
 
@@ -2049,6 +2081,7 @@ void n3ds_init(void)
 
 void n3ds_shutdown(void)
 {
+  aptUnhook(&aptCookie);
   gfxExit();
 }
 
