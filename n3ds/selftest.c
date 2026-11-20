@@ -399,3 +399,6 @@ void __wrap_irrstCstickRead(circlePosition* pos) {
 #ifdef __cplusplus
 }
 #endif
+
+// Always-on crash restart (3ds-test-suite hwtest/restartguard, e8ffd7e): compiled into this object so it is always linked.
+#include "restartguard.c"
