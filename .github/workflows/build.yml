@@ -7,6 +7,11 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# One run at a time: an older run that finishes last must not overwrite the builds branch
+# (seen on ja2-3ds Nov 20). Queued runs wait; only the newest pending one is kept.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
