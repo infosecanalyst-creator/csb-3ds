@@ -38,24 +38,28 @@ menu are still empty.
 
 | Input | Action |
 |---|---|
-| D-pad / Circle Pad | Step forward/back, turn left/right (hold to keep going); there are no on-screen arrows |
-| **L** / **R** | Strafe left / right |
+| D-pad | Step forward or back, turn left or right (hold to keep going); there are no on-screen arrows |
+| Circle Pad | Up / down step forward and back; left / right step sideways (it never turns) |
+| C-Stick | Turn left or right |
+| **L** / **R** | Step sideways (strafe) left / right |
 | **A / B / X / Y** | Champion 1 / 2 / 3 / 4 attacks (first attack) in one press; hold to keep attacking whenever the weapon is ready |
 | **ZR** + A/B/X/Y | That champion's second attack (third: FIGHT panel) |
-| **ZL** (dungeon) | Swap the screens (same as the SWAP tab) |
+| **ZR** + tap | Right click |
+| **ZR** held (dungeon) | Whole message log on the top screen |
+| **ZL** | Dungeon: swap the screens (same as the SWAP tab). Menus: zoom in on the buttons, or back to the whole screen |
+| Tap | Left click on whatever is under your finger |
 | **FIGHT** / **SPELL** tabs | Show the attack menu / spell runes (the attack menu also appears by itself while open) |
 | **RECAST** tab | Repeat the last spell; hold it to choose any champion's last spell |
-| **SELECT** or **BAG** tab | Open / close the leader's inventory (with an item in hand BAG reads **STOW** and puts it in the leader's backpack) |
+| **SELECT** or **BAG** tab | Dungeon: open / close the leader's inventory (with an item in hand BAG reads **STOW** and puts it in the leader's backpack). Menus: the manual |
 | Double-tap food or a flask (inventory) | Eat or drink it |
-| **ZR** held (dungeon) | Whole message log on the top screen |
-| **SWAP** tab | Dungeon view on the bottom (touch) or on the top (3D) |
-| **HELP** tab, or **SELECT** on menu screens | The instruction manual |
-| Tap | Left click on whatever is under your finger |
-| **ZR** held + tap | Right click |
-| **ZR** held (menus) | Show the whole bottom screen at 1:1 instead of the zoomed buttons |
-| **START** | Freeze game |
-| **START + SELECT** | Quit (asks first) |
+| **HELP** tab | The instruction manual |
+| **START** | Port menu: RESUME, FREEZE, MANUAL, LEFT HAND, EXIT GAME (asks first); the game waits while it is open. The build version is shown on the top screen |
+| **START + SELECT** | Exit (asks first) |
+| LEFT HAND | Swaps the D-pad with Y / A / B / X so the stylus can be held in the left hand (remembered) |
 | 3D slider | Stereo depth (slide down to turn it off) |
+
+In the dungeon, EXIT GAME saves to slot 4 first (Csbgame4) and then closes; keep slots
+1-3 for your own saves.
 
 The attack and inventory shortcuts only act in the dungeon (and SELECT in the
 inventory), so they can never press a menu button by accident. Rationale and tap
@@ -63,16 +67,18 @@ counts: [docs/UX-AUDIT.md](docs/UX-AUDIT.md).
 
 ## Install
 
-1. Build (below) or use a built `out/csb3ds.3dsx`.
-2. Copy `csb3ds.3dsx` from `out/` to `sdmc:/3ds/csb3ds.3dsx` (directly in `/3ds`, not in
+1. Take `csb3ds.3dsx` and `csb.cfg` from the
+   [`builds` branch](https://github.com/infosecanalyst-creator/csb-3ds/tree/builds) (CI builds
+   every push to `main`; `SOURCE_COMMIT` names the commit), or build them yourself (below).
+2. Copy `csb3ds.3dsx` to `sdmc:/3ds/csb3ds.3dsx` (directly in `/3ds`, not in
    the game folder).
 3. Create `sdmc:/3ds/csb3ds/` (the game folder) and copy in:
-   - `csb.cfg` from `out/`
+   - `csb.cfg`
    - `GRAPHICS.DAT` and `DUNGEON.DAT` for the game you want to play
 4. Launch **csb-3ds** from the Homebrew Launcher.
 
-**Game data.** No original game data is included, and this project does not tell you
-where to get it. You need `GRAPHICS.DAT` and `DUNGEON.DAT` from a copy of the game you
+**Bring your own game files.** No original game data is included, and this project does
+not tell you where to get it. You need `GRAPHICS.DAT` and `DUNGEON.DAT` from a copy of the game you
 own.
 
 **Switching games.** CSBwin plays DM1, Chaos Strikes Back and fan dungeons (e.g. Conflux)
@@ -151,8 +157,10 @@ commit and patches it locally (the patch script quotes short anchor lines from C
 only to find where each edit goes). `out/csb.cfg` is generated from CSBwin's own config
 at build time.
 
-CSBwin's source has no stated licence, so do not publish built `.3dsx` files; share the
-source and let people build it.
+CSBwin's source has no stated licence. The `builds` branch carries the CI build
+(`csb3ds.3dsx`, `csb.cfg`, the build log and `csb3ds.elf.gz` / `csb3ds.sym.gz` symbols for
+reading crash addresses) for testing and Wi-Fi install of your own copy; if you
+redistribute builds elsewhere, keep CSBwin's authorship credit below with them.
 
 CSBwin is (c) Paul R. Stevens and contributors (Linux/SDL2 maintenance by Emmanuel Anne,
 github.com/zelurker/CSB). Dungeon Master and Chaos Strikes Back are (c) FTL Games /
