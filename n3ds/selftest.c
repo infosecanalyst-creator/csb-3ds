@@ -150,17 +150,17 @@ static u32 st_button(const char* b) {
 }
 
 // ---- Screenshots ---------------------------------------------------------------
-// The screens are copied to memory at once (fast, on the game's thread) and written
-// to the SD card by a separate thread, so a slow SD card never holds the game up (a
-// shot froze Gold Box on the real 3DS). One buffer, allocated at the first shot and
-// reused for every later one (each shot used to allocate ~1.7 MB of the game's heap):
-// [ write chunk | top screen pixels | bottom screen pixels ]. The BMP is converted
-// from the pixel copy into the chunk and written a chunk at a time (few, large SD
-// writes: 240 small row writes queued behind Gold Box's own SD reads took minutes).
-#define ST_CHUNK (48 * 1024)
+// Each screen is turned into a finished BMP in memory at once (a few ms, on the game's
+// thread) and written to the SD card by a separate thread, so a slow SD card never holds
+// the game up (a shot froze Gold Box on the real 3DS). One buffer, allocated at the first
+// shot and reused for every later one (each shot used to allocate ~1.7 MB of the game's
+// heap): [ top screen BMP | bottom screen BMP ], about 520 KB. Each file goes to the card
+// with ONE unbuffered fwrite: on the real SD card every write request costs 70-100 ms
+// (and queues behind the game's own reads), so 48 KB pieces took 7-16 s per shot and 240
+// row writes took minutes.
 static u8* st_shotBuf;
 static size_t st_shotCap;
-typedef struct { char path[300]; const u8* px; int fmt, w, stride; } StShotJob;
+typedef struct { char path[300]; const u8* data; u32 size; } StShotJob;
 static StShotJob st_jobs[2];          // the two screens of one shot
 static volatile int st_jobHead, st_jobTail;
 static LightEvent st_jobEvent;
@@ -170,13 +170,12 @@ static const char* volatile st_writing;
 static volatile u32 st_wroteN, st_wroteMs, st_wroteMaxMs;
 static int st_writerCore = -2;
 
-static void st_bmp(const char* path, const u8* fb, int fmt, int w, int h, int stride) {
-    u8* out = st_shotBuf;               // the chunk at the start of the shot buffer
+static u32 st_bmp_size(int w, int h) { return 54 + (u32)((w * 3 + 3) & ~3) * h; }
+
+// A 24-bit BMP of one screen, built at out (st_bmp_size bytes).
+static void st_bmp(u8* out, const u8* fb, int fmt, int w, int h, int stride) {
     int row = (w * 3 + 3) & ~3;
-    u32 size = 54 + row * h;
-    FILE* f = fopen(path, "wb");
-    if (!f) return;
-    setvbuf(f, NULL, _IONBF, 0);       // straight to the card, one request per chunk
+    u32 size = st_bmp_size(w, h);
     memset(out, 0, 54);
     out[0] = 'B'; out[1] = 'M';
     memcpy(out + 2, &size, 4);
@@ -185,15 +184,15 @@ static void st_bmp(const char* path, const u8* fb, int fmt, int w, int h, int st
     memcpy(out + 18, &w, 4);
     memcpy(out + 22, &h, 4);
     out[26] = 1; out[28] = 24;
-    size_t used = 54;
     int bpp = fmt == GSP_RGBA8_OES ? 4 : fmt == GSP_BGR8_OES ? 3 : 2;
-    for (int y = h - 1; y >= 0; y--) {           // BMP rows go bottom-up
-        if (used + row > ST_CHUNK) { fwrite(out, 1, used, f); used = 0; }
-        u8* line = out + used;
-        memset(line, 0, row);
-        for (int x = 0; x < w; x++) {
-            // 3DS framebuffers are rotated: column x is stored as a run of 240 pixels, y from the bottom.
-            const u8* p = fb + x * stride + (239 - y) * bpp;
+    if (row > w * 3)
+        for (int y = 0; y < h; y++) memset(out + 54 + (size_t)y * row + w * 3, 0, row - w * 3);   // row padding
+    // 3DS framebuffers are rotated: column x is stored as a run of 240 pixels, y from the
+    // bottom, which is the BMP's own row order (bottom-up). Read the framebuffer in memory order.
+    for (int x = 0; x < w; x++) {
+        const u8* p = fb + (size_t)x * stride;
+        u8* q = out + 54 + x * 3;
+        for (int k = 0; k < h; k++, p += bpp, q += row) {   // k = rows from the bottom
             u8 r = 0, g = 0, b = 0;
             if (fmt == GSP_RGBA8_OES) { r = p[3]; g = p[2]; b = p[1]; }
             else if (fmt == GSP_BGR8_OES) { r = p[2]; g = p[1]; b = p[0]; }
@@ -203,11 +202,16 @@ static void st_bmp(const char* path, const u8* fb, int fmt, int w, int h, int st
                 else if (fmt == GSP_RGB5_A1_OES) { r = (c >> 11) << 3; g = ((c >> 6) & 31) << 3; b = ((c >> 1) & 31) << 3; }
                 else { r = (c >> 12) << 4; g = ((c >> 8) & 15) << 4; b = ((c >> 4) & 15) << 4; }
             }
-            line[x * 3] = b; line[x * 3 + 1] = g; line[x * 3 + 2] = r;
+            q[0] = b; q[1] = g; q[2] = r;
         }
-        used += row;
     }
-    if (used) fwrite(out, 1, used, f);
+}
+
+static void st_write_file(const char* path, const u8* data, u32 size) {
+    FILE* f = fopen(path, "wb");
+    if (!f) return;
+    setvbuf(f, NULL, _IONBF, 0);       // straight to the card: the whole file in one request
+    fwrite(data, 1, size, f);
     fclose(f);
 }
 
@@ -271,7 +275,7 @@ static void st_writer(void* arg) {
             StShotJob* j = &st_jobs[st_jobTail % 2];
             st_writing = j->path;
             u64 t0 = osGetTime();
-            st_bmp(j->path, j->px, j->fmt, j->w, 240, j->stride);
+            st_write_file(j->path, j->data, j->size);
             u32 ms = (u32)(osGetTime() - t0);
             st_writing = NULL;
             st_wroteN = st_wroteN + 1;
@@ -293,15 +297,13 @@ static void st_shot(const char* name) {
     if (st_jobTail != st_jobHead) { st_logf("shot %s: writer still busy, skipped\n", name); return; }
     GSPGPU_CaptureInfo ci;
     if (R_FAILED(GSPGPU_ImportDisplayCaptureInfo(&ci))) { st_logf("shot %s: capture failed\n", name); return; }
-    int w[2], stride[2];
-    size_t n[2], need = ST_CHUNK;
+    int w[2];
+    size_t need = 0;
     for (int s = 0; s < 2; s++) {
         GSPGPU_CaptureInfoEntry* e = &ci.screencapture[s];
         // the top screen in the 800-pixel mode: neither the 2D (bit 6) nor the 3D (bit 5) flag
         w[s] = s == 0 ? ((e->format & 0x60) == 0 ? 800 : 400) : 320;
-        stride[s] = e->framebuf_widthbytesize;
-        n[s] = (size_t)w[s] * stride[s];
-        need += n[s];
+        need += st_bmp_size(w[s], 240);
     }
     if (need > st_shotCap) {
         free(st_shotBuf);
@@ -309,16 +311,14 @@ static void st_shot(const char* name) {
         st_shotCap = st_shotBuf ? need : 0;
         if (!st_shotBuf) { st_logf("shot %s: no memory (%lu bytes)\n", name, (unsigned long)need); return; }
     }
-    u8* px = st_shotBuf + ST_CHUNK;
+    u8* out = st_shotBuf;
     for (int s = 0; s < 2; s++) {
         GSPGPU_CaptureInfoEntry* e = &ci.screencapture[s];
         StShotJob* j = &st_jobs[(st_jobHead + s) % 2];
-        j->fmt = e->format & 7;
-        j->w = w[s];
-        j->stride = stride[s];
-        memcpy(px, e->framebuf0_vaddr, n[s]);
-        j->px = px;
-        px += n[s];
+        j->data = out;
+        j->size = st_bmp_size(w[s], 240);
+        st_bmp(out, (const u8*)e->framebuf0_vaddr, e->format & 7, w[s], 240, e->framebuf_widthbytesize);
+        out += j->size;
         snprintf(j->path, sizeof j->path, "%s/%s_%s.bmp", st_dir, name, s == 0 ? "top" : "bottom");
     }
     st_jobHead = st_jobHead + 2;
@@ -479,7 +479,7 @@ __attribute__((constructor)) static void st_hide_arg(void) {
 
 // The game quit by itself (Lantern: START in its picker) while the writer was
 // still saving a shot: exit() then freed the heap under it and the writer
-// crashed (data abort in st_bmp, Nov 19 2026). Let the writes finish first.
+// crashed (data abort in the BMP writer, Nov 19 2026). Let the writes finish first.
 static void st_drain_at_exit(void) {
     for (int i = 0; i < 100 && st_jobTail != st_jobHead; i++) svcSleepThread(100000000LL);
     if (st_log) {
