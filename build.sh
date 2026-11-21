@@ -5,7 +5,7 @@
 #   From Windows (Docker Desktop), in this folder:   .\build-windows.ps1
 #   From Linux/macOS with Docker:                    docker run --rm -v "$PWD":/work -w /work devkitpro/devkitarm bash build.sh
 #
-# Output: out/csb3ds.3dsx  -> copy to SD:/3ds/csb3ds/
+# Output: out/csb3ds.3dsx -> SD:/3ds/csb3ds.3dsx; out/csb.cfg -> SD:/3ds/csb3ds/ (game folder)
 set -euo pipefail
 
 CSB_REPO=https://github.com/zelurker/CSB.git
@@ -83,4 +83,4 @@ sed -e 's/^width = .*/width = 320/' -e 's/^height = .*/height = 200/' \
     "$WORK/CSB/csb.cfg" > "$HERE/out/csb.cfg"
 echo
 echo "Done: out/csb3ds.3dsx and out/csb.cfg"
-echo "Copy both (plus GRAPHICS.DAT and DUNGEON.DAT) to SD:/3ds/csb3ds/"
+echo "Copy csb3ds.3dsx to SD:/3ds/csb3ds.3dsx, and csb.cfg (plus GRAPHICS.DAT and DUNGEON.DAT) to SD:/3ds/csb3ds/"

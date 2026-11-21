@@ -64,10 +64,12 @@ counts: [docs/UX-AUDIT.md](docs/UX-AUDIT.md).
 ## Install
 
 1. Build (below) or use a built `out/csb3ds.3dsx`.
-2. On the SD card create `3ds/csb3ds/` and copy in:
-   - `csb3ds.3dsx` and `csb.cfg` from `out/`
+2. Copy `csb3ds.3dsx` from `out/` to `sdmc:/3ds/csb3ds.3dsx` (directly in `/3ds`, not in
+   the game folder).
+3. Create `sdmc:/3ds/csb3ds/` (the game folder) and copy in:
+   - `csb.cfg` from `out/`
    - `GRAPHICS.DAT` and `DUNGEON.DAT` for the game you want to play
-3. Launch **csb-3ds** from the Homebrew Launcher.
+4. Launch **csb-3ds** from the Homebrew Launcher.
 
 **Game data.** No original game data is included, and this project does not tell you
 where to get it. You need `GRAPHICS.DAT` and `DUNGEON.DAT` from a copy of the game you

@@ -14,7 +14,7 @@ You lead up to four champions through a real-time dungeon. Monsters move while y
 # Getting started
 ## Installing over Wi-Fi
 1. On the 3DS, open the Homebrew Launcher and start ftpd.
-2. Upload csb3ds.3dsx and csb.cfg to sdmc:/3ds/csb3ds/.
+2. Upload csb3ds.3dsx to sdmc:/3ds/ and csb.cfg to sdmc:/3ds/csb3ds/.
 3. Close ftpd and start Dungeon Master from the Homebrew Launcher.
 
 Updates install the same way. You never need to take the SD card out.
