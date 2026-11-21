@@ -63,6 +63,15 @@ cp "$HERE/Makefile.3ds" "$WORK/CSB/src/"
 echo "== building"
 make -C "$WORK/CSB/src" -f Makefile.3ds -j"$(nproc)" SDL_CFLAGS="$SDL_CFLAGS" SDL_LIBS="$SDL_LIBS"
 
+# The hardware test hooks must be linked in (the test agent gets the console back only
+# through them): fail the build if the wrapped input calls or the script hook are missing.
+NM="$DEVKITPRO/devkitARM/bin/arm-none-eabi-nm"
+syms="$("$NM" "$WORK/CSB/src/csb3ds.elf")"
+for s in __wrap_hidScanInput __wrap_aptMainLoop __wrap_hidKeysHeld __wrap_hidTouchRead st_hide_arg st_watchdog st_drain_at_exit; do
+  grep -q " $s\$" <<<"$syms" || { echo "selftest hook missing from csb3ds.elf: $s"; exit 1; }
+done
+echo "== selftest hooks linked (wrap + script + watchdog + exit drain)"
+
 mkdir -p "$HERE/out"
 cp "$WORK/CSB/src/csb3ds.3dsx" "$HERE/out/"
 # csb.cfg: CSBwin's own config with the TrueType message overlay off (the 3DS build draws

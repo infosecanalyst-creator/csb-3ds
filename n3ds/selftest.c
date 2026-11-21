@@ -227,6 +227,7 @@ static void st_finish(const char* why) {
 // returns to the agent when the game does not quit within 15 s of the script's
 // end, when frames stop for 60 s (a hang), or after 30 minutes in all.
 static volatile u64 st_beat;
+static volatile u32 st_hang_ms = 60000;   // watchdog limit for a frame gap (script: hang SECS)
 static void st_watchdog(void* arg) {
     (void)arg;
     u64 last = 0, still = 0, doneAt = 0, start = osGetTime();
@@ -242,13 +243,37 @@ static void st_watchdog(void* arg) {
             why = "";
         } else {
             if (st_beat != last) { last = st_beat; still = now; }
-            else if (now - still > 60000) why = "watchdog: no frames for 60 s (the game hung)";
+            // before the first frame a big game may still be loading (FS2: ~40 s+ of data): allow 3 min
+            else if (now - still > (st_beat ? (u64)st_hang_ms : 180000)) why = st_beat ? "watchdog: no frames for the hang limit (the game hung)"
+                                                                            : "watchdog: no first frame within 3 min (the game hung while starting)";
             if (now - start > 30 * 60 * 1000) why = "watchdog: the test ran longer than 30 minutes";
         }
         if (why) {
             if (*why) st_logf("%s\n%s\n", why, st_done ? "" : "done frames=0 (stopped by the watchdog)");
             if (st_log) { fclose(st_log); st_log = NULL; }
             st_set_target();
+            if (!st_done) {
+                // A hung game is usually stuck waiting on the GPU. Ending the process left the GPU hung
+                // (every later launch froze until a power-off), so restart the whole console instead:
+                // a clean restart through APT. Nobody has to hold
+                // POWER, and the log is already closed (Nov 15 2026).
+                // Restart through APT (the application way), then end this process so the restart is
+                // not held up by a stuck main thread. ptm:sysm RebootAsync crashed the ptm process
+                // (kernel panic, Nov 15), so it is not used.
+                svcSleepThread(500000000LL);
+                // Cold restart through the MCU first (Nov 16): Luma treats it as a power-on and
+                // autoboots the test agent, so nobody has to touch the 3DS. Tested from the agent
+                // (COLDREBOOT). APT restart as the fallback (lands on the HOME Menu).
+                if (R_SUCCEEDED(mcuHwcInit())) {
+                    u8 v = 1 << 2;
+                    MCUHWC_WriteRegister(0x20, &v, 1);
+                    mcuHwcExit();
+                    svcSleepThread(3000000000LL);
+                }
+                APT_HardwareResetAsync();
+                svcSleepThread(2000000000LL);
+                svcExitProcess();
+            }
             aptSetChainloaderToSelf();   // relaunch the Homebrew loader, which starts the agent
             aptExit();
             svcExitProcess();
@@ -288,6 +313,17 @@ __attribute__((constructor)) static void st_hide_arg(void) {
     __system_argc = n;
 }
 
+// The game quit by itself (Lantern: START in its picker) while the writer was
+// still saving a shot: exit() then freed the heap under it and the writer
+// crashed (data abort in st_bmp, Nov 19 2026). Let the writes finish first.
+static void st_drain_at_exit(void) {
+    for (int i = 0; i < 100 && st_jobTail != st_jobHead; i++) svcSleepThread(100000000LL);
+    if (st_log) {
+        st_logf("game exited by itself at frame %llu\n", (unsigned long long)st_frame);
+        fclose(st_log); st_log = NULL;
+    }
+}
+
 static void st_init(void) {
     st_on = 0;
     const char* script = st_scriptArg;
@@ -304,6 +340,7 @@ static void st_init(void) {
     st_logf("selftest: %d steps from %s\n", st_n, script);
     st_set_target();   // if the game exits by itself mid-test, the loader starts the agent, not the Homebrew Menu
     st_on = 1;
+    atexit(st_drain_at_exit);
     s32 prio = 0x30;
     svcGetThreadPriority(&prio, CUR_THREAD_HANDLE);
     threadCreate(st_watchdog, NULL, 16 * 1024, prio - 1, -2, true);
@@ -355,7 +392,9 @@ static void st_step(void) {
             st_waitCol = strtol(col, NULL, 16); st_waitMax = mx; st_waitDone = 0;
             return;
         }
-        if (!strcmp(cmd, "hang")) continue;   // the emulator suite checks hangs; here the agent times out
+        if (!strcmp(cmd, "hang")) {            // hang SECS: frames may stop this long (loading) before the watchdog acts; 0 = 60 s
+            int sec = atoi(a1); st_hang_ms = (sec > 0 ? sec : 60) * 1000; continue;
+        }
         if (!strcmp(cmd, "end")) break;
     }
     st_finish("end of script");
