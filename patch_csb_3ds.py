@@ -415,7 +415,10 @@ def patch_savegame(t):
              '#ifdef __3DS__\n  if (D0W >= 0) n3ds_automap_loaded(d.SaveGameFilename);\n#endif\n')
     t = edit(t, "SaveGame exit save done",
              "    CLOSE(d.datafileHandle);\n  // ****",
-             "    CLOSE(d.datafileHandle);\n#ifdef __3DS__\n    n3ds_exit_save_result(1);\n#endif\n  // ****")
+             # CSB-03: a failed close (the last buffered bytes not reaching the SD card)
+             # is a failed save: take the engine's own "save failed" path, never report it saved.
+             "#ifdef __3DS__\n    if (CLOSE(d.datafileHandle) != 0) goto tag01e4f0;\n"
+             "    n3ds_exit_save_result(1);\n#else\n    CLOSE(d.datafileHandle);\n#endif\n  // ****")
     t = edit(t, "SaveGame exit save failed",
              "tag01e4f0:\n  CLOSE(d.datafileHandle);\n",
              "tag01e4f0:\n  CLOSE(d.datafileHandle);\n#ifdef __3DS__\n  n3ds_exit_save_result(-1);\n#endif\n")
@@ -423,6 +426,16 @@ def patch_savegame(t):
                 '  if (d.datafileHandle >= 0)\n  {\n',
                 '  if (d.datafileHandle >= 0)\n  {\n'
                 '#ifdef __3DS__\n    n3ds_automap_saved(d.SaveGameFilename, (const char *)d.Pointer22980);\n#endif\n')
+
+
+def patch_system(t):
+    # CSB-03: CLOSE ignored fclose's result. On the 3DS report a failed close (a
+    # buffered write that never reached the SD card) as -1 so the save path can see it.
+    return edit(t, "system CLOSE result",
+                "  fclose(GETFILE((ui16)file));\n  GETFILETABLE((ui16)file)->SetFile(NULL, NULL);\n  return 0;\n",
+                "#ifdef __3DS__\n  int closeResult = fclose(GETFILE((ui16)file));\n"
+                "  GETFILETABLE((ui16)file)->SetFile(NULL, NULL);\n  return closeResult == 0 ? 0 : -1;\n#else\n"
+                "  fclose(GETFILE((ui16)file));\n  GETFILETABLE((ui16)file)->SetFile(NULL, NULL);\n  return 0;\n#endif\n")
 
 
 def patch_hint(t):
@@ -442,6 +455,7 @@ PATCHES = {
     "CSBUI.cpp": patch_csbui,
     "CSBCode.cpp": patch_csbcode,
     "SaveGame.cpp": patch_savegame,
+    "system.cpp": patch_system,
 }
 
 

@@ -12,6 +12,9 @@
 #include "n3ds_platform.h"
 
 #define DATA_DIR "sdmc:/3ds/csb3ds"
+#ifndef PORT_VERSION
+#define PORT_VERSION "unknown"   // build.sh passes git describe of this repo
+#endif
 
 unsigned short n3ds_st_buffer[320 * 200];
 
@@ -1291,8 +1294,8 @@ static const u32 GAME_KEYS = KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R | KEY
                              KEY_CPAD_LEFT | KEY_CPAD_RIGHT | KEY_CSTICK_LEFT | KEY_CSTICK_RIGHT | KEY_START | KEY_SELECT;
 
 static void flushSettings(bool force);
-// Exit save: 0 none, 1 saving, 2 written, 3 failed (the engine shows its own message;
-// the next EXIT GAME then exits without trying again).
+// Exit save: 0 none, 1 saving, 2 written, 3 failed, 4 failure seen (the engine shows its
+// own message; the next EXIT GAME asks "Not saved (save failed). Exit anyway?", focus NO).
 static int exitSaveState = 0;
 static u64 exitSaveT0 = 0;
 void n3ds_exit_save_result(int result)
@@ -1817,6 +1820,7 @@ static int portMenu(bool startOnExit)
   bool confirm = startOnExit;
   if (confirm) focus = 1;
   const bool exitSave = exitSaveAvailable();
+  const bool saveFailed = exitSaveState == 4;   // the last exit save failed: say so
   bool waitRelease = true;   // the press that opened the menu may still be down
   auto rectOf = [&](int i, int &x, int &y, int &w, int &h) {
     if (!confirm) { const int y0 = 28, gap = 4; h = (BOT_H - 6 - y0 - gap * (M_COUNT - 1)) / M_COUNT; x = 6; w = BOT_W - 12; y = y0 + i * (h + gap); }
@@ -1849,18 +1853,20 @@ static int portMenu(bool startOnExit)
       fillRect(t, TOP_W, 0, 0, TOP_W, 22, kHFace);
       drawText(t, TOP_W, 8, 7, "DUNGEON MASTER / CHAOS STRIKES BACK", kHGold);
       drawText(t, TOP_W, TOP_W - 8 - 6 * 8, 7, "PAUSED", kHWhite);
-      drawText(t, TOP_W, 8, 40, confirm ? "Exit the game?" : "The game waits while this menu is open.", kHWhite);
+      drawText(t, TOP_W, 8, 40, !confirm ? "The game waits while this menu is open."
+                                : saveFailed ? "Not saved (the save failed). Exit anyway?" : "Exit the game?", kHWhite);
       drawText(t, TOP_W, 8, 58, !confirm ? "FREEZE keeps it frozen after the menu"
                                 : exitSave ? "The game is saved first to slot 4." : "Anything you have not saved is lost.", kHGrey);
       if (confirm && exitSave) drawText(t, TOP_W, 8, 72, "Load it from slot 4 next time.", kHGrey);
       if (!confirm) drawText(t, TOP_W, 8, 72, "closes (GAME FROZEN): click to go on.", kHGrey);
+      if (!confirm) drawText(t, TOP_W, 8, 206, "Build " PORT_VERSION, kHGrey);
       drawHintStrip(t, TOP_W, confirm ? "A choose   B no" : "A choose   B / START resume");
     }
     u16 *b = (u16 *)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
     fillRect(b, BOT_W, 0, 0, BOT_W, BOT_H, kHBg);
     fillRect(b, BOT_W, 0, 0, BOT_W, 22, kHFace);
     drawText(b, BOT_W, 8, 7, confirm ? "EXIT GAME" : "MENU", kHGold);
-    if (confirm) { drawText(b, BOT_W, 8, 40, "Exit the game?", kHWhite); drawText(b, BOT_W, 8, 58, exitSave ? "Saved first to slot 4." : "Unsaved progress is lost.", kHGrey); }
+    if (confirm) { drawText(b, BOT_W, 8, 40, saveFailed ? "Not saved (save failed)." : "Exit the game?", kHWhite); drawText(b, BOT_W, 8, 58, exitSave ? "Saved first to slot 4." : "Unsaved progress is lost.", kHGrey); }
     for (int i = 0; i < nb; i++) {
       int x, y, w, h; rectOf(i, x, y, w, h);
       const bool pr = pressFrames > 0 && i == pressed;
@@ -1938,6 +1944,35 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
 // <save>.map beside it, loading a save reads it back, and a new game starts blank.
 static const char MAP_MAGIC[8] = { 'C', 'S', 'B', '3', 'M', 'A', 'P', '1' };
 
+// Crash-safe small-file write: <path>.tmp is written and closed with every result
+// checked, then swapped in through <path>.bak (rename over an existing file fails on
+// the 3DS SD card). On any failure the old file stays (or is put back). Returns true
+// only when the new file is in place.
+static bool writeFileSafely(const char *path, const void *a, size_t na, const void *b, size_t nb)
+{
+  char tmp[PATH_MAX], bak[PATH_MAX];
+  snprintf(tmp, sizeof tmp, "%s.tmp", path);
+  snprintf(bak, sizeof bak, "%s.bak", path);
+  FILE *f = fopen(tmp, "wb");
+  if (!f) return false;
+  bool ok = (na == 0 || fwrite(a, 1, na, f) == na) && (nb == 0 || fwrite(b, 1, nb, f) == nb);
+  if (fclose(f) != 0) ok = false;
+  if (!ok) { remove(tmp); return false; }
+  struct stat st;
+  bool hadOld = stat(path, &st) == 0;
+  if (hadOld) {
+    remove(bak);
+    if (rename(path, bak) != 0) { remove(tmp); return false; }
+  }
+  if (rename(tmp, path) != 0) {
+    if (hadOld) rename(bak, path);
+    remove(tmp);
+    return false;
+  }
+  if (hadOld) remove(bak);
+  return true;
+}
+
 void n3ds_automap_saved(const char *saveName, const char *backupName)
 {
   if (!saveName) return;
@@ -1949,12 +1984,10 @@ void n3ds_automap_saved(const char *saveName, const char *backupName)
     remove(bak);
     rename(path, bak);
   }
-  FILE *f = fopen(path, "wb");
-  if (!f) return;
-  fwrite(MAP_MAGIC, 1, sizeof MAP_MAGIC, f);
-  fwrite(seen, 1, sizeof seen, f);
-  fclose(f);
-  DBG("[n3ds] auto-map saved to %s\n", path);
+  if (!writeFileSafely(path, MAP_MAGIC, sizeof MAP_MAGIC, seen, sizeof seen))
+    printf("[n3ds] auto-map NOT saved to %s\n", path);
+  else
+    DBG("[n3ds] auto-map saved to %s\n", path);
 }
 
 void n3ds_automap_loaded(const char *saveName)   // NULL = new game
@@ -2029,10 +2062,11 @@ static void flushSettings(bool force)
 }
 static void writeSettingsNow(void)
 {
-  FILE *f = fopen(DATA_DIR "/csb3ds.ini", "w");
-  if (!f) return;
-  fprintf(f, "view_on_bottom=%d\nshow_spell=%d\nlefty=%d\n", viewOnBottom ? 1 : 0, showSpell ? 1 : 0, leftyOn ? 1 : 0);
-  fclose(f);
+  char text[96];
+  int n = snprintf(text, sizeof text, "view_on_bottom=%d\nshow_spell=%d\nlefty=%d\n",
+                   viewOnBottom ? 1 : 0, showSpell ? 1 : 0, leftyOn ? 1 : 0);
+  if (n <= 0 || !writeFileSafely(DATA_DIR "/csb3ds.ini", text, (size_t)n, NULL, 0))
+    printf("[n3ds] settings NOT saved (csb3ds.ini write failed)\n");
 }
 
 static void loadSettings(void)

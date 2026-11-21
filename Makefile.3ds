@@ -23,10 +23,13 @@ ICON      := $(if $(wildcard icon.png),icon.png,$(CTRULIB)/default_icon.png)
 
 ARCH     := -march=armv6k -mtune=mpcore -mfpu=vfp -mfloat-abi=hard -mtp=soft
 DEFINES  := -D__3DS__ -D_LINUX -DRGB655 -DSDL20 -DIMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS
+# Shown in the START menu. build.sh passes git describe of this repo (make runs in the CSB clone).
+PORT_VERSION ?= unknown
+DEFINES  += -DPORT_VERSION=\"$(PORT_VERSION)\"
 SDL_CFLAGS := $(shell $(PKGCONFIG) --cflags sdl2 2>/dev/null || echo -I$(PORTLIBS)/include/SDL2 -D_GNU_SOURCE=1)
 SDL_LIBS   := $(shell $(PKGCONFIG) --libs sdl2 2>/dev/null || echo -L$(PORTLIBS)/lib -lSDL2)
 INCLUDES := -I. -Isdl_sound -Iimgui -Ifnmatch -I$(PORTLIBS)/include -I$(CTRULIB)/include $(SDL_CFLAGS)
-CFLAGS   := -include n3ds_compat.h -O2 -g -ffunction-sections -fno-strict-aliasing $(ARCH) $(DEFINES) $(INCLUDES) -w
+CFLAGS   := -include n3ds_compat.h -O2 -g -ffunction-sections -fno-strict-aliasing $(ARCH) $(DEFINES) $(INCLUDES)
 CXXFLAGS := $(CFLAGS) -std=gnu++11
 LDFLAGS  := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(TARGET).map -Wl,--gc-sections
 # Hardware test hooks (3ds-test-suite hwtest/selftest): inactive unless the test agent

@@ -11,6 +11,8 @@ set -euo pipefail
 CSB_REPO=https://github.com/zelurker/CSB.git
 CSB_COMMIT=ee93fec75e5c2712139fa34a3192f0835da99262   # tested anchor set; bump deliberately
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# Version shown in the START menu: taken before the build touches anything.
+PORT_VERSION="$(git -C "$HERE" describe --always --dirty 2>/dev/null || echo unknown)"
 WORK="$HERE/build"
 export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
 
@@ -61,7 +63,7 @@ cp "$HERE/Makefile.3ds" "$WORK/CSB/src/"
 [ -f "$HERE/icon.png" ] && cp "$HERE/icon.png" "$WORK/CSB/src/"
 
 echo "== building"
-make -C "$WORK/CSB/src" -f Makefile.3ds -j"$(nproc)" SDL_CFLAGS="$SDL_CFLAGS" SDL_LIBS="$SDL_LIBS"
+make -C "$WORK/CSB/src" -f Makefile.3ds -j"$(nproc)" SDL_CFLAGS="$SDL_CFLAGS" SDL_LIBS="$SDL_LIBS" PORT_VERSION="$PORT_VERSION"
 
 # The hardware test hooks must be linked in (the test agent gets the console back only
 # through them): fail the build if the wrapped input calls or the script hook are missing.
@@ -74,6 +76,10 @@ echo "== selftest hooks linked (wrap + script + watchdog + exit drain)"
 
 mkdir -p "$HERE/out"
 cp "$WORK/CSB/src/csb3ds.3dsx" "$HERE/out/"
+# Symbols for reading crash addresses: the gzipped .elf (addr2line) and a demangled nm map.
+gzip -9c "$WORK/CSB/src/csb3ds.elf" > "$HERE/out/csb3ds.elf.gz"
+"$NM" -C -n "$WORK/CSB/src/csb3ds.elf" | gzip -9 > "$HERE/out/csb3ds.sym.gz"
+echo "== version $PORT_VERSION"
 # csb.cfg: CSBwin's own config with the TrueType message overlay off (the 3DS build draws
 # the original message area) and the window at the native 320x200. Keep its [keys] section:
 # the 3DS buttons are mapped onto those scancodes.
