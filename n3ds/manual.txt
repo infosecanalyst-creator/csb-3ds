@@ -26,7 +26,7 @@ The game needs GRAPHICS.DAT and DUNGEON.DAT from Dungeon Master (or Chaos Strike
 The first screen is the game's own menu. Tap DUNGEON for a new game, or pick a saved game. At the entrance, tap ENTER.
 
 ## Saves
-Save from the disk icon in any champion's inventory. Saves are written to sdmc:/3ds/csb3ds/.
+Save from the disk icon in any champion's inventory (use slots 1 to 3), or use START > SAVE (SLOT 4) in the dungeon. Saves are written to sdmc:/3ds/csb3ds/. A save that fails to close counts as failed: the game says so and never reports it saved.
 
 # The two screens
 ## Bottom screen: the dungeon
@@ -68,7 +68,7 @@ SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top
 | Left hand | The LEFT HAND button on the manual's touch screen swaps the D-pad with Y, A, B and X (Y is up, A is right, B is down, X is left, and the reverse), so the stylus can be held in the left hand. It is remembered.
 | 3D slider | Depth for the top-screen view and map
 
-In the dungeon, START > SAVE writes slot 4 (Csbgame4) and the game goes on; EXIT GAME saves to slot 4 first and then closes. SAVE is greyed out where the game cannot be saved safely (title screens, menus, the champion mirror). Slot 4 is kept for these saves: use slots 1-3 for your own saves with the disk icon, and load slot 4 from the game's own load menu.
+In the dungeon, START > SAVE (SLOT 4) writes slot 4 (Csbgame4) and the game goes on; EXIT GAME saves to slot 4 first and then closes. Closing the game from the HOME menu (HOME, then Close) does the same slot 4 save before it quits (it waits up to 6 seconds for it). If the exit save fails, the game says so and the next EXIT GAME asks "Not saved (the save failed). Exit anyway?" with NO chosen; it never quits after a failed save without asking. SAVE is greyed out where the game cannot be saved safely (title screens, menus, the champion mirror). Slot 4 is kept for these saves: use slots 1-3 for your own saves with the disk icon, and load slot 4 from the game's own load menu.
 
 The A B X Y attacks and SELECT inventory only work in the dungeon, so they can never press a menu button by accident.
 
@@ -152,7 +152,12 @@ Put GRAPHICS.DAT and DUNGEON.DAT in sdmc:/3ds/csb3ds/.
 On menu screens (title, entrance, champion mirror) ZL zooms the touch screen in on the buttons; press ZL again to see the whole screen.
 
 ## Debugging
-An empty file named debug.txt in sdmc:/3ds/csb3ds/ writes csb3ds.log there and marks each tap with a crosshair.
+An empty file named debug.txt in sdmc:/3ds/csb3ds/ writes csb3ds.log there and marks each tap with a crosshair. Delete the file to switch it off.
+
+## Where everything is
+- The program: sdmc:/3ds/csb3ds.3dsx (directly in /3ds).
+- Everything else: sdmc:/3ds/csb3ds/ (csb.cfg, GRAPHICS.DAT, DUNGEON.DAT, saves, the auto-map, csb3ds.ini).
+- The auto-map and the settings file (csb3ds.ini) are written to a temporary file first, so a failed write keeps the old one.
 
 ## Changing this manual
 A file named manual.txt in sdmc:/3ds/csb3ds/ replaces the built-in text. Sections start with "# ", headings with "## ", list items with "- ", numbered steps with "1. " and table rows with "| ".
