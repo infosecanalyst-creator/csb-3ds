@@ -2,6 +2,7 @@
 #ifdef __3DS__
 
 #include <3ds.h>
+#include <sys/iosupport.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1298,6 +1299,7 @@ static void flushSettings(bool force);
 // own message; the next EXIT GAME asks "Not saved (save failed). Exit anyway?", focus NO).
 static int exitSaveState = 0;
 static u64 exitSaveT0 = 0;
+static bool saveOnly = false;   // START > SAVE: the same slot-4 save, but the game goes on afterwards
 void n3ds_exit_save_result(int result)
 {
   if (exitSaveState == 1) exitSaveState = result > 0 ? 2 : 3;
@@ -1358,14 +1360,20 @@ bool n3ds_poll(void)
   if (exitSaveState == 1) {             // saving: the engine runs, input waits
     hidScanInput();
     if (svcGetSystemTick() - exitSaveT0 > (u64)SYSCLOCK_ARM11 * (homeClose ? 6 : 15)) {
+      if (saveOnly) { printf("[n3ds] SAVE: no answer in time\n"); saveOnly = false; exitSaveState = 4; return true; }
       printf("[n3ds] exit save: no answer in time, exiting\n");
       flushSettings(true);
       return false;
     }
     return true;
   }
+  if (exitSaveState == 2 && saveOnly) {   // START > SAVE finished: back to the game
+    printf("[n3ds] SAVE written (slot 4)\n");
+    saveOnly = false; exitSaveState = 0;
+    armSuppress = true; presentPending = topDirty = true;
+  }
   if (exitSaveState == 2) { printf("[n3ds] exit save written\n"); flushSettings(true); return false; }
-  if (exitSaveState == 3) { printf("[n3ds] exit save FAILED\n"); exitSaveState = 4; }
+  if (exitSaveState == 3) { printf("[n3ds] %s FAILED\n", saveOnly ? "SAVE" : "exit save"); saveOnly = false; exitSaveState = 4; }
   flushSettings(false);
   hidScanInput();
   u32 down = remapKeys(hidKeysDown()), held = remapKeys(hidKeysHeld());
@@ -1405,6 +1413,11 @@ bool n3ds_poll(void)
     if (r == 1) n3ds_send_key(0x1b, 0x29);                                        // FREEZE: Esc, the game's freeze
     else if (r == 2) manualRequested = true;
     else if (r == 3) return !beginExit();
+    else if (r == 4 && exitSaveAvailable()) {   // SAVE: slot 4, then play on
+      printf("[n3ds] SAVE to slot 4\n");
+      saveOnly = true; exitSaveState = 1; exitSaveT0 = svcGetSystemTick();
+      n3ds_engine_exit_save_start();
+    }
     return true;
   }
   // These shortcuts replay clicks at fixed game-screen spots, so they only run where
@@ -1815,13 +1828,15 @@ static void showManual(void)
 // ---------------------------------------------------------------------------
 static int portMenu(bool startOnExit)
 {
-  enum { M_RESUME, M_FREEZE, M_MANUAL, M_LEFTY, M_EXIT, M_COUNT };
+  enum { M_RESUME, M_SAVE, M_FREEZE, M_MANUAL, M_LEFTY, M_EXIT, M_COUNT };
   int focus = 0, pressed = -1, pressFrames = 0, chosen = -1;
   bool confirm = startOnExit;
   if (confirm) focus = 1;
   const bool exitSave = exitSaveAvailable();
   const bool saveFailed = exitSaveState == 4;   // the last exit save failed: say so
   bool waitRelease = true;   // the press that opened the menu may still be down
+  // SAVE is greyed out (no click, no press, skipped by the D-pad) wherever the exit save is not allowed
+  auto enabled = [&](int i) { return confirm || i != M_SAVE || exitSave; };
   auto rectOf = [&](int i, int &x, int &y, int &w, int &h) {
     if (!confirm) { const int y0 = 28, gap = 4; h = (BOT_H - 6 - y0 - gap * (M_COUNT - 1)) / M_COUNT; x = 6; w = BOT_W - 12; y = y0 + i * (h + gap); }
     else { x = i == 0 ? 6 : 164; y = 120; w = 150; h = 112; }
@@ -1833,12 +1848,12 @@ static int portMenu(bool startOnExit)
     const int nb = confirm ? 2 : M_COUNT;
     int hit = -1;
     if (!pressFrames && !waitRelease) {
-      if (kd & (KEY_DUP | KEY_DLEFT)) focus = (focus + nb - 1) % nb;
-      if (kd & (KEY_DDOWN | KEY_DRIGHT)) focus = (focus + 1) % nb;
+      if (kd & (KEY_DUP | KEY_DLEFT)) { do focus = (focus + nb - 1) % nb; while (!enabled(focus)); }
+      if (kd & (KEY_DDOWN | KEY_DRIGHT)) { do focus = (focus + 1) % nb; while (!enabled(focus)); }
       if (kd & KEY_A) hit = focus;
       if (kd & KEY_TOUCH) {
         touchPosition t; hidTouchRead(&t);
-        for (int i = 0; i < nb; i++) { int x, y, w, h; rectOf(i, x, y, w, h); if (t.px >= x && t.px < x + w && t.py >= y && t.py < y + h) hit = i; }
+        for (int i = 0; i < nb; i++) { int x, y, w, h; rectOf(i, x, y, w, h); if (enabled(i) && t.px >= x && t.px < x + w && t.py >= y && t.py < y + h) hit = i; }
       }
       if (kd & (KEY_B | KEY_START)) {
         if (confirm && !startOnExit) { confirm = false; focus = M_EXIT; }
@@ -1855,10 +1870,10 @@ static int portMenu(bool startOnExit)
       drawText(t, TOP_W, TOP_W - 8 - 6 * 8, 7, "PAUSED", kHWhite);
       drawText(t, TOP_W, 8, 40, !confirm ? "The game waits while this menu is open."
                                 : saveFailed ? "Not saved (the save failed). Exit anyway?" : "Exit the game?", kHWhite);
-      drawText(t, TOP_W, 8, 58, !confirm ? "FREEZE keeps it frozen after the menu"
+      drawText(t, TOP_W, 8, 58, !confirm ? (exitSave ? "SAVE writes slot 4 (EXIT GAME does too)." : "SAVE is greyed out: not in normal play.")
                                 : exitSave ? "The game is saved first to slot 4." : "Anything you have not saved is lost.", kHGrey);
       if (confirm && exitSave) drawText(t, TOP_W, 8, 72, "Load it from slot 4 next time.", kHGrey);
-      if (!confirm) drawText(t, TOP_W, 8, 72, "closes (GAME FROZEN): click to go on.", kHGrey);
+      if (!confirm) drawText(t, TOP_W, 8, 72, "FREEZE freezes the game (click to go on).", kHGrey);
       if (!confirm) drawText(t, TOP_W, 8, 206, "Build " PORT_VERSION, kHGrey);
       drawHintStrip(t, TOP_W, confirm ? "A choose   B no" : "A choose   B / START resume");
     }
@@ -1871,13 +1886,14 @@ static int portMenu(bool startOnExit)
       int x, y, w, h; rectOf(i, x, y, w, h);
       const bool pr = pressFrames > 0 && i == pressed;
       const char *l = confirm ? (i == 0 ? "YES, EXIT" : "NO")
-                    : i == M_RESUME ? "RESUME" : i == M_FREEZE ? "FREEZE" : i == M_MANUAL ? "MANUAL"
+                    : i == M_RESUME ? "RESUME" : i == M_SAVE ? "SAVE (SLOT 4)" : i == M_FREEZE ? "FREEZE" : i == M_MANUAL ? "MANUAL"
                     : i == M_LEFTY ? (leftyOn ? "LEFT HAND: ON" : "LEFT HAND: OFF") : "EXIT GAME";
-      fillRect(b, BOT_W, x, y, w, h, pr ? kHPress : kHFace);
-      frameRect(b, BOT_W, x, y, w, h, kHEdge);
+      const bool off = !enabled(i);
+      fillRect(b, BOT_W, x, y, w, h, pr ? kHPress : off ? kHShade : kHFace);
+      frameRect(b, BOT_W, x, y, w, h, off ? kHShade : kHEdge);
       if (!pr) fillRect(b, BOT_W, x + 1, y + h - 2, w - 2, 1, kHShade);
       const int len = (int)strlen(l);
-      drawText(b, BOT_W, x + (w - len * 8) / 2 + (pr ? 1 : 0), y + (h - 8) / 2 + (pr ? 1 : 0), l, pr ? rgb565(0, 0, 0) : kHWhite);
+      drawText(b, BOT_W, x + (w - len * 8) / 2 + (pr ? 1 : 0), y + (h - 8) / 2 + (pr ? 1 : 0), l, pr ? rgb565(0, 0, 0) : off ? kHGrey : kHWhite);
       if (i == focus && !pr) { frameRect(b, BOT_W, x - 1, y - 1, w + 2, h + 2, kHGold); frameRect(b, BOT_W, x - 2, y - 2, w + 4, h + 4, kHGold); }
     }
     gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
@@ -1908,6 +1924,9 @@ static int portMenu(bool startOnExit)
 bool n3ds_message_box(const char *msg, const char *title, bool yesno)
 {
   static PrintConsole con;
+  // consoleInit() points stdout/stderr at the bottom-screen console; remember where they went
+  // (the debug log, when on) and put them back afterwards (CSB-05).
+  const devoptab_t *savedOut = devoptab_list[STD_OUT], *savedErr = devoptab_list[STD_ERR];
   consoleInit(GFX_BOTTOM, &con);
   consoleSelect(&con);
   consoleClear();
@@ -1926,6 +1945,8 @@ bool n3ds_message_box(const char *msg, const char *title, bool yesno)
   }
   // Give the bottom screen back to the game.
   consoleClear();
+  devoptab_list[STD_OUT] = savedOut;
+  devoptab_list[STD_ERR] = savedErr;
   setupScreens();
   n3ds_force_redraw();
   presentPending = topDirty = true;
