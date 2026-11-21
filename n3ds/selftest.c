@@ -230,6 +230,7 @@ static long st_pixel(int top, int x, int y) {
 static int st_waitTop, st_waitX, st_waitY;
 static long st_waitCol, st_waitMax, st_waitDone;
 static u64 st_waitPixUntil;
+static u64 st_shotWait;            // a shot waits for the writer since this time (0 = not waiting)
 
 // ---- Is the game still drawing? -------------------------------------------------
 // The watchdog normally goes by input passes (hidScanInput calls). A game can still be
@@ -288,12 +289,8 @@ static void st_writer(void* arg) {
 }
 
 static void st_shot(const char* name) {
-    if (st_jobTail != st_jobHead) {   // the previous shot is still being written: wait for it (10 s at most)
-        u64 t0 = osGetTime();
-        while (st_jobTail != st_jobHead && osGetTime() - t0 < 10000) svcSleepThread(10000000LL);
-        if (st_jobTail != st_jobHead) { st_logf("shot %s: writer behind, skipped\n", name); return; }
-        st_logf("shot %s: waited %lu ms for the previous shot\n", name, (unsigned long)(osGetTime() - t0));
-    }
+    // the caller (the script step) waits frame by frame until the writer is free, so this never skips
+    if (st_jobTail != st_jobHead) { st_logf("shot %s: writer still busy, skipped\n", name); return; }
     GSPGPU_CaptureInfo ci;
     if (R_FAILED(GSPGPU_ImportDisplayCaptureInfo(&ci))) { st_logf("shot %s: capture failed\n", name); return; }
     int w[2], stride[2];
@@ -353,7 +350,7 @@ static void st_set_target(void) {
 // The script ended (or was stopped at the time limit). The watchdog then ends the game
 // the normal way (after ST_DONE_GRACE_MS, for ports that quit by themselves).
 static void st_finish(const char* why) {
-    for (int i = 0; i < 200 && st_jobTail != st_jobHead; i++) svcSleepThread(100000000LL);   // let the last shots reach the SD card
+    for (int i = 0; i < 600 && st_jobTail != st_jobHead; i++) svcSleepThread(100000000LL);   // let the last shot reach the SD card (60 s at most)
     const char* w = st_writing;
     st_logf("writer: core %d, %lu files, %lu ms in all, slowest %lu ms\n", st_writerCore,
             (unsigned long)st_wroteN, (unsigned long)st_wroteMs, (unsigned long)st_wroteMaxMs);
@@ -586,7 +583,7 @@ static void st_step(void) {
     while (st_pc < st_n) {
         char cmd[32] = "", a1[64] = "", a2[64] = "", a3[64] = "", a4[64] = "", a5[64] = "";
         sscanf(st_lines[st_pc++], "%31s %63s %63s %63s %63s %63s", cmd, a1, a2, a3, a4, a5);
-        st_logf("> %s %s %s %s %s %s\n", cmd, a1, a2, a3, a4, a5);
+        if (!st_shotWait) st_logf("> %s %s %s %s %s %s\n", cmd, a1, a2, a3, a4, a5);
         if (!strcmp(cmd, "wait")) { st_wait = atol(a1); if (st_wait > 0) return; continue; }
         if (!strcmp(cmd, "waitms")) { long ms = atol(a1); if (ms > 0) { st_until = st_now + (u64)ms; return; } continue; }
         if (!strcmp(cmd, "minpress")) { st_minpress = (u32)atol(a1); continue; }
@@ -635,7 +632,21 @@ static void st_step(void) {
             st_input_step(*a4 ? atol(a4) : 30);
             return;
         }
-        if (!strcmp(cmd, "shot")) { st_shot(a1); continue; }
+        if (!strcmp(cmd, "shot")) {
+            // The previous shot is still being written (a slow SD card shared with the game: Gold Box
+            // dropped 3 of 10 shots after a 10 s wait). Wait for it frame by frame: the script pauses,
+            // the game keeps running. Two minutes at most, then the shot is skipped (logged).
+            if (st_jobTail != st_jobHead) {
+                if (!st_shotWait) st_shotWait = st_now ? st_now : 1;
+                if (st_now - st_shotWait < 120000) { st_pc--; return; }
+                st_logf("shot %s: writer busy for 120 s, skipped\n", a1);
+                st_shotWait = 0;
+                continue;
+            }
+            if (st_shotWait) { st_logf("shot %s: waited %lu ms for the previous shot to be written\n", a1, (unsigned long)(st_now - st_shotWait)); st_shotWait = 0; }
+            st_shot(a1);
+            continue;
+        }
         if (!strcmp(cmd, "waitpix")) {   // waitpix top|bottom X Y RRGGBB MAXFRAMES
             st_waitTop = !strcmp(a1, "top"); st_waitX = atoi(a2); st_waitY = atoi(a3);
             long mx = atol(a5);
