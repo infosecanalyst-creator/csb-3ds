@@ -2,6 +2,7 @@
 
 ## 2026-11-21
 
+- Manual, left-hand mode: the footer line's last word (CLOSE) is no longer cut off.
 - New SAVE (SLOT 4) button in the START menu: saves to slot 4 and the game goes on. It is greyed out where the game cannot be saved safely, and the menu explains slot 4.
 - The game's text output is restored after a message box (a failed save's message no longer breaks later output).
 - Quieter touch click.

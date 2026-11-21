@@ -1672,8 +1672,9 @@ static void manDrawTop(u16 *fb)
     fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, kHShade);
     fillRect(fb, TOP_W, TOP_W - 5, thumbY, 4, thumbH, gold);
   }
-  // the house footer wording (8 px font: 50 letters across, so no colons and tighter gaps)
-  drawText(fb, TOP_W, leftyOn ? 4 : MAN_X, TOP_H - 11, leftyOn ? "STICKS SCROLL ABXY, L/R SECTION D-DOWN/START CLOSE" : "STICKS SCROLL  D-PAD, L/R SECTION  B/START CLOSE", dim);
+  // the house footer wording (8 px font: 50 letters across, so no colons and tighter gaps; the
+  // left-hand line is exactly 50 letters and starts at the edge: at x 4 its last letter was cut)
+  drawText(fb, TOP_W, leftyOn ? 0 : MAN_X, TOP_H - 11, leftyOn ? "STICKS SCROLL ABXY, L/R SECTION D-DOWN/START CLOSE" : "STICKS SCROLL  D-PAD, L/R SECTION  B/START CLOSE", dim);
 }
 
 static Rect manButton(int i, int count)   // section buttons in two columns, Close last
