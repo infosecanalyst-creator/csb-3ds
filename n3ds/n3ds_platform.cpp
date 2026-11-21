@@ -1824,7 +1824,7 @@ static void showManual(void)
 // START: the port menu (house style, claude/3ds-look-and-feel.md)
 // RESUME, FREEZE (the game's own freeze: GAME FROZEN until you click), MANUAL,
 // LEFT HAND and EXIT GAME (asks first, focus on NO). The game does not run while
-// the menu is open. Returns: 0 resume, 1 freeze, 2 manual, 3 exit.
+// the menu is open. Returns: 0 resume, 1 freeze, 2 manual, 3 exit, 4 save (slot 4, then play on).
 // ---------------------------------------------------------------------------
 static int portMenu(bool startOnExit)
 {
@@ -1915,7 +1915,7 @@ static int portMenu(bool startOnExit)
   }
   presentPending = topDirty = true;
   armSuppress = true;
-  return chosen == M_FREEZE ? 1 : chosen == M_MANUAL ? 2 : chosen == M_EXIT ? 3 : 0;
+  return chosen == M_FREEZE ? 1 : chosen == M_MANUAL ? 2 : chosen == M_EXIT ? 3 : chosen == M_SAVE ? 4 : 0;
 }
 
 // ---------------------------------------------------------------------------
