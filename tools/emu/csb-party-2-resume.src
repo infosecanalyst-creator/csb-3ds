@@ -1,0 +1,24 @@
+wait 600
+t 212 132
+wait 600
+tap 260 103 10
+wait 300
+shot 00_select
+tap 105 178 10
+wait 300
+shot 01_loaded
+tap 213 178 10
+wait 200
+shot 02_tap_where_dump_was
+tap 160 132 10
+wait 600
+shot 03_playing
+tap 82 221 10
+wait 90
+shot 04_spell_panel
+tap 186 221 10
+wait 120
+shot 05_bag
+press SELECT 14
+wait 90
+shot 06_back

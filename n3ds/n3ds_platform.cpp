@@ -882,7 +882,14 @@ static Rect chooserButton(int c) { Rect r = { c * 80 + 1, 168, 78, 38 }; return 
 // champions and a remembered spell, a WHO button sits just above the RECAST tab. A tap opens the
 // list and it stays open; the next tap picks a champion (or, anywhere else, closes it).
 static bool recastSticky = false;
-static const Rect WHO_BUTTON = { TAB_EDGE + TAB_RECAST * (TAB_W + TAB_GAP), 178, TAB_W, 26 };
+// Above the RECAST tab; with the FIGHT or SPELL panel open (it starts at x 142) it moves left, clear of the panel.
+static bool fightShown(void);
+static Rect whoButton(void)
+{
+  Rect r = { TAB_EDGE + TAB_RECAST * (TAB_W + TAB_GAP), 178, TAB_W, 26 };
+  if (showSpell || fightShown()) r.x = 142 - 4 - TAB_W;
+  return r;
+}
 static bool whoButtonShown(void)
 {
   if (layout != LAYOUT_DUNGEON || recastChooser || n3ds_engine_party_size() < 2) return false;
@@ -915,7 +922,7 @@ static void drawTabs(u16 *fb)
   bool haveSpell = lastCaster >= 0 && lastCaster < n3ds_engine_party_size();
   if (recastChooser) drawRecastChooser(fb);
   if (whoButtonShown()) {
-    const Rect &r = WHO_BUTTON;
+    const Rect r = whoButton();
     fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, face);
     frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, edge);
     fillRect(fb, BOT_W, r.x + 1, r.y + r.h - 2, r.w - 2, 1, kHShade);
@@ -1244,7 +1251,7 @@ static void handleTouch(u32 held)
         presentPending = topDirty = true;
         return;
       }
-      if (whoButtonShown() && inRect(WHO_BUTTON, t.px, t.py)) {
+      if (whoButtonShown() && inRect(whoButton(), t.px, t.py)) {
         touchOnButton = true;
         playClick();
         recastSticky = recastChooser = true;

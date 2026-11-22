@@ -1,0 +1,38 @@
+wait 600
+t 212 132
+wait 600
+tap 260 103 10
+wait 300
+tap 213 178 10
+wait 300
+tap 160 178 10
+wait 600
+shot 00_playing_two
+tap 82 221 10
+wait 90
+tap 161 167 10
+wait 60
+shot 01_power
+tap 242 167 10
+wait 60
+shot 02_element
+tap 225 190 10
+wait 120
+shot 03_cast
+tap 82 221 10
+wait 90
+shot 04_who_visible
+tap 134 190 10
+wait 60
+shot 05_who_open
+tap 40 187 10
+wait 120
+shot 06_recast_zed
+tap 134 190 10
+wait 60
+tap 160 80 10
+wait 60
+shot 07_closed_by_tap_elsewhere
+tap 134 221 10
+wait 120
+shot 08_recast_tab

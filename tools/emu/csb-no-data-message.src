@@ -1,0 +1,13 @@
+wait 600
+shot 00_boot
+t 212 132
+wait 600
+shot 01_after_dungeon
+press A 14
+wait 120
+shot 02_after_a
+tap 160 170 10
+wait 120
+shot 03_after_tap
+wait 300
+shot 04_later

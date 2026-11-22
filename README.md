@@ -59,7 +59,7 @@ menu are still empty.
 | 3D slider | Stereo depth (slide down to turn it off) |
 
 In the dungeon, START > SAVE (SLOT 3) saves to slot 3 (csbgame3) and play goes on; the top screen says GAME SAVED TO SLOT 3. EXIT GAME and HOME > Close save to slot 4 (Csbgame4) first and then close, so the exit save never replaces your slot 3 save. If the exit save fails you are asked "Exit anyway?" with NO chosen. Keep slots
-1 and 2 for your own saves (the disk icon). To come back: DUNGEON, RESUME at the gate, tap the save (the newest is marked A), PLAY GAME.
+1 and 2 for your own saves (the disk icon). To come back: DUNGEON, RESUME at the gate, tap the save (csbgame3 = START > SAVE, Csbgame4 = exit save; the letters give the order written, A the oldest), PLAY GAME.
 
 The attack and inventory shortcuts only act in the dungeon (and SELECT in the
 inventory), so they can never press a menu button by accident. Rationale and tap

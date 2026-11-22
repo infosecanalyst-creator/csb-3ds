@@ -1,0 +1,35 @@
+wait 600
+t 212 132
+wait 600
+t 260 62
+wait 2000
+press START 14
+wait 60
+shot 01_menu_noparty
+tap 160 183 10
+wait 60
+shot 02_lefty_on
+tap 160 113 10
+wait 120
+shot 03_freeze
+tap 160 100 10
+wait 90
+shot 04_unfrozen
+press START 14
+wait 60
+tap 160 148 10
+wait 90
+shot 05_manual_lefty
+stick L 0 -150 60
+wait 10
+shot 06_manual_scrolled
+press START 14
+wait 60
+press START 14
+wait 60
+tap 160 218 10
+wait 60
+shot 07_exit_ask_lefty
+press DOWN 14
+wait 60
+shot 08_after_ddown

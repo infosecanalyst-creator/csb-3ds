@@ -1,0 +1,114 @@
+wait 600
+t 212 132
+wait 600
+t 260 62
+wait 2000
+press UP 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press LEFT 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press LEFT 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press RIGHT 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press RIGHT 14
+wait 60
+press UP 14
+wait 60
+press LEFT 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press RIGHT 14
+wait 60
+press UP 14
+wait 60
+press LEFT 14
+wait 60
+press UP 14
+wait 60
+press UP 14
+wait 60
+press RIGHT 14
+wait 60
+press UP 14
+wait 60
+tap 160 88 10
+wait 70
+shot 000_T160_88
+wait 120
+shot 001_W120
+tap 130 135 10
+wait 70
+shot 002_T130_135
+wait 200
+shot 003_W200
+press START 14
+wait 60
+tap 160 78 10
+wait 70
+shot 004_T160_78
+wait 300
+shot 005_W300
+press LEFT 14
+wait 60
+shot 006_L
+press LEFT 14
+wait 60
+shot 007_L
+press UP 14
+wait 60
+shot 008_U
+tap 160 88 10
+wait 70
+shot 009_T160_88
+wait 120
+shot 010_W120
+tap 130 135 10
+wait 70
+shot 011_T130_135
+wait 200
+shot 012_W200
+press START 14
+wait 60
+shot 013_ST
+tap 160 218 10
+wait 70
+shot 014_T160_218
+wait 60
+shot 015_W60
+tap 80 176 10
+wait 70
+shot 016_T80_176
+wait 300
+shot 017_W300
+wait 600
+shot 018_W600
