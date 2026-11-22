@@ -26,7 +26,7 @@ The game needs GRAPHICS.DAT and DUNGEON.DAT from Dungeon Master (or Chaos Strike
 The first screen is the game's own menu. Tap DUNGEON for a new game, or pick a saved game. At the entrance, tap ENTER.
 
 ## Saves
-Save from the disk icon in any champion's inventory (use slots 1 to 3), or use START > SAVE (SLOT 4) in the dungeon. Saves are written to sdmc:/3ds/csb3ds/. A save that fails to close counts as failed: the game says so and never reports it saved.
+Save from the disk icon in any champion's inventory (use slots 1 and 2), or use START > SAVE (SLOT 3) in the dungeon. The top screen then says GAME SAVED TO SLOT 3. EXIT GAME saves to slot 4, so the two never replace each other. Saves are written to sdmc:/3ds/csb3ds/. A save that fails to close counts as failed: the game says so and never reports it saved.
 
 # The two screens
 ## Bottom screen: the dungeon
@@ -38,7 +38,7 @@ The touch screen is where you play. Use the stylus like a mouse; a finger works 
 ## The tabs
 | FIGHT | Attack menu. Tap a weapon, then an attack.
 | SPELL | Rune panel for casting.
-| RECAST | Casts the last spell again. Hold it to pick any champion's last spell.
+| RECAST | Casts the last spell again. WHO, above it, picks any champion's last spell.
 | BAG | The leader's inventory. With an item in hand it reads STOW and puts the item in the leader's backpack.
 | SWAP | Moves the big view to the top screen; the map below it becomes a touchpad for pointing at the view.
 | HELP | This manual.
@@ -68,7 +68,9 @@ SWAP (or ZL, any time in the dungeon) puts the dungeon view full-size on the top
 | Left hand | The LEFT HAND button on the manual's touch screen swaps the D-pad with Y, A, B and X (Y is up, A is right, B is down, X is left, and the reverse), so the stylus can be held in the left hand. It is remembered.
 | 3D slider | Depth for the top-screen view and map
 
-In the dungeon, START > SAVE (SLOT 4) writes slot 4 (Csbgame4) and the game goes on; EXIT GAME saves to slot 4 first and then closes. Closing the game from the HOME menu (HOME, then Close) does the same slot 4 save before it quits (it waits up to 6 seconds for it). If the exit save fails, the game says so and the next EXIT GAME asks "Not saved (the save failed). Exit anyway?" with NO chosen; it never quits after a failed save without asking. SAVE is greyed out where the game cannot be saved safely (title screens, menus, the champion mirror). Slot 4 is kept for these saves: use slots 1-3 for your own saves with the disk icon, and load slot 4 from the game's own load menu.
+In the dungeon, START > SAVE (SLOT 3) writes slot 3 (csbgame3) and the game goes on; the message line on the top screen says GAME SAVED TO SLOT 3, or SAVE FAILED if it could not be written (then SAVE can be tried again). EXIT GAME saves to slot 4 (Csbgame4) first and then closes, so it never replaces your slot 3 save. Closing the game from the HOME menu (HOME, then Close) does the same slot 4 save before it quits (it waits up to 6 seconds for it). If the exit save fails, the game says so and the next EXIT GAME asks "Not saved (the save failed). Exit anyway?" with NO chosen; it never quits after a failed save without asking. SAVE is greyed out where the game cannot be saved safely (no party yet, title screens, menus, the champion mirror); the top screen says which. Slots 3 and 4 are kept for these saves: use slots 1 and 2 for your own saves with the disk icon.
+
+To come back to a game: start the program, tap DUNGEON, tap RESUME at the gate, then tap the save on the SELECT GAME FILE list (the newest one is marked A), then PLAY GAME. You are where you saved, with the same map.
 
 The A B X Y attacks and SELECT inventory only work in the dungeon, so they can never press a menu button by accident.
 
@@ -115,7 +117,7 @@ Each starts with a power rune; LO is the cheapest.
 
 There is no healing spell: healing comes from VI potions.
 
-RECAST repeats the last spell, with the same caster and runes, in one tap. Hold RECAST for a moment and a button appears for each champion with a remembered spell; slide to one and let go to cast theirs. Any runes already typed are cleared first.
+RECAST repeats the last spell, with the same caster and runes, in one tap. To cast another champion's remembered spell, tap WHO (it appears just above RECAST once you have two champions and a remembered spell): a button appears for each champion; tap one. Holding RECAST for a moment opens the same buttons; slide to one and let go. Any runes already typed are cleared first.
 
 # Inventory
 Tap a portrait, the BAG tab or SELECT to open the inventory. The dungeon view is replaced by that champion's equipment and backpack, at a larger size for fingers. The top screen keeps showing the map and the party.
@@ -132,14 +134,14 @@ The map on the top screen draws every square you have seen. North is always up.
 - Orange bars are doors, stripes are stairs and dark squares are pits.
 - The level number is top left, your facing top right.
 
-The map starts empty each time you start the game.
+The map is kept with each save: loading a save brings its map back. A new game starts with an empty map.
 
 # Survival
 - Food and water: watch the FOOD and WATER bars. They turn yellow, then red. Eat and drink before they run out.
 - Light: torches burn down. When LIGHT drops, light a new torch or cast FUL.
 - Rest: sleep (ZZZ in the inventory) to recover HP, stamina and mana. Monsters can still find you.
 - Save often. The dungeon does not forgive.
-- Open the START menu any time you need to stop; FREEZE keeps the game frozen after it closes.
+- Open the START menu any time you need to stop; FREEZE keeps the game frozen after it closes (the top screen says "Game frozen"); tap the touch screen to go on.
 
 # Troubleshooting
 ## There is no sound

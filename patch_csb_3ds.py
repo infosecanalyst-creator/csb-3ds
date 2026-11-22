@@ -247,16 +247,21 @@ void n3ds_engine_champion_stats(int i, int out[6])
 // file dialog uses) aimed at the last save slot, so nothing else is overwritten.
 // The backup name is set too: otherwise the old slot-4 file would be renamed over
 // the .BAK of whichever slot was loaded last.
+// START > SAVE has its own slot (3), so the exit save never replaces it; the names are the
+// ones the engine's own file list uses (lower-case c for slot 3).
 static char n3dsExitSaveName[] = "Csbgame4.dat";
 static char n3dsExitSaveBak[] = "Csbgame4.BAK";
+static char n3dsMenuSaveName[] = "csbgame3.dat";
+static char n3dsMenuSaveBak[] = "csbgame3.BAK";
+bool n3ds_engine_frozen(void) { return gameFrozen; }
 bool n3ds_engine_exit_save_possible(void)
 {
   return !disableSaves && d.NumCharacter > 0 && d.PotentialCharacterOrdinal == 0;
 }
-void n3ds_engine_exit_save_start(void)
+void n3ds_engine_exit_save_start(int slot)
 {
-  opened_file = n3dsExitSaveName;
-  d.Pointer22980 = n3dsExitSaveBak;
+  opened_file = slot == 3 ? n3dsMenuSaveName : n3dsExitSaveName;
+  d.Pointer22980 = slot == 3 ? n3dsMenuSaveBak : n3dsExitSaveBak;
   skipToSavenPlay = true;
   DispatchCSB(st_DisplayDiskMenu);
 }
@@ -393,7 +398,19 @@ def patch_csbui(t):
 def patch_csbcode(t):
     # Message log on the top screen: see every line the game prints.
     t = edit(t, "CSBCode include", '#include "stdafx.h"\n',
-             '#include "stdafx.h"\n#ifdef __3DS__\n#include "n3ds_platform.h"\n#endif\n')
+             '#include "stdafx.h"\n#ifdef __3DS__\n#include "n3ds_platform.h"\n'
+             '#define N3DS_LOADED_SECOND_BUTTON NULL\n#define N3DS_LOADED_BUTTONS 1\n#else\n'
+             '#define N3DS_LOADED_SECOND_BUTTON "ASCII DUMP"\n#define N3DS_LOADED_BUTTONS 2\n#endif\n')
+    # After a save is loaded the engine offers PLAY GAME and ASCII DUMP (a debugging dump of the
+    # dungeon to a text file). On the 3DS only PLAY GAME is offered: the dump button sat exactly
+    # where the save slot's button was, so a second tap pressed it.
+    # (DoMenu and WaitForMenuSelect are macros, so the choice is made in two #defines, not inside their arguments.)
+    t = edit(t, "CSBCode no ASCII DUMP button",
+             '\t\t    "PLAY GAME",\n\t\t    "ASCII DUMP",\n',
+             '\t\t    "PLAY GAME",\n\t\t    N3DS_LOADED_SECOND_BUTTON,\n')
+    t = edit(t, "CSBCode one button after load",
+             "\t    WaitForMenuSelect(_2_, 2,1,0,0);\n",
+             "\t    WaitForMenuSelect(_2_, N3DS_LOADED_BUTTONS,1,0,0);\n")
     return edit(t, "CSBCode PrintLines hook",
                 "void PrintLines(const i32 color, const char *Text)\n{//(void)\n",
                 "void PrintLines(const i32 color, const char *Text)\n{//(void)\n"

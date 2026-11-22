@@ -53,13 +53,13 @@ menu are still empty.
 | **SELECT** or **BAG** tab | Dungeon: open / close the leader's inventory (with an item in hand BAG reads **STOW** and puts it in the leader's backpack). Menus: the manual |
 | Double-tap food or a flask (inventory) | Eat or drink it |
 | **HELP** tab | The instruction manual |
-| **START** | Port menu: RESUME, SAVE (SLOT 4) (greyed out where the game cannot be saved), FREEZE, MANUAL, LEFT HAND, EXIT GAME (asks first); the game waits while it is open. The build version is shown on the top screen |
+| **START** | Port menu: RESUME, SAVE (SLOT 3) (greyed out where the game cannot be saved; the top screen says why), FREEZE, MANUAL, LEFT HAND, EXIT GAME (asks first); the game waits while it is open. The build version is shown on the top screen |
 | **START + SELECT** | Exit (asks first) |
 | LEFT HAND | Swaps the D-pad with Y / A / B / X so the stylus can be held in the left hand (remembered) |
 | 3D slider | Stereo depth (slide down to turn it off) |
 
-In the dungeon, START > SAVE (SLOT 4) saves to slot 4 (Csbgame4) and play goes on; EXIT GAME and HOME > Close save to slot 4 first and then close. If that save fails you are asked "Exit anyway?" with NO chosen. Keep slots
-1-3 for your own saves; load slot 4 from the game's own load menu.
+In the dungeon, START > SAVE (SLOT 3) saves to slot 3 (csbgame3) and play goes on; the top screen says GAME SAVED TO SLOT 3. EXIT GAME and HOME > Close save to slot 4 (Csbgame4) first and then close, so the exit save never replaces your slot 3 save. If the exit save fails you are asked "Exit anyway?" with NO chosen. Keep slots
+1 and 2 for your own saves (the disk icon). To come back: DUNGEON, RESUME at the gate, tap the save (the newest is marked A), PLAY GAME.
 
 The attack and inventory shortcuts only act in the dungeon (and SELECT in the
 inventory), so they can never press a menu button by accident. Rationale and tap

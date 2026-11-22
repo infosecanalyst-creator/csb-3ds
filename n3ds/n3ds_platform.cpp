@@ -834,6 +834,15 @@ static void drawTop(u16 *fb, float eye /* -1 left, +1 right */, float slider)
     blitViewportStereo(fb, TOP_DUNGEON_VP, eye, slider);
     drawMessages(fb);
     drawVitals(fb);
+  } else if (n3ds_engine_frozen()) {   // FREEZE: say so, and how to go on (it showed the title's help card)
+    fillRect(fb, TOP_W, 0, 0, TOP_W, TOP_H, kHBg);
+    fillRect(fb, TOP_W, 0, 0, TOP_W, 22, kHFace);
+    drawText(fb, TOP_W, 8, 7, "DUNGEON MASTER / CHAOS STRIKES BACK", kHGold);
+    drawText(fb, TOP_W, TOP_W - 8 - 6 * 8, 7, "FROZEN", kHWhite);
+    drawText(fb, TOP_W, 8, 40, "Game frozen.", kHWhite);
+    drawText(fb, TOP_W, 8, 58, "Nothing moves and no time passes.", kHGrey);
+    drawText(fb, TOP_W, 8, 76, "Tap the touch screen to go on.", kHWhite);
+    drawHintStrip(fb, TOP_W, "Tap the touch screen to go on");
   } else if (fullZoom && memcmp(&BOT_FULL[0], &BOT_FULL_1X, sizeof(Region)) != 0) {   // only when the touch screen really is zoomed (else: no duplicate)
     blitRegion(fb, TOP_FULL);   // the touch screen is zoomed: the whole screen here
   } else if (n3ds_engine_party_size() > 0) {
@@ -869,6 +878,17 @@ static bool handFull(void) { return layout == LAYOUT_DUNGEON && n3ds_engine_hand
 static bool recastHeld = false, recastChooser = false;
 static u64 recastSince = 0;
 static Rect chooserButton(int c) { Rect r = { c * 80 + 1, 168, 78, 38 }; return r; }
+// The same list without a long press (UI rule 12: nothing hidden behind one): with two or more
+// champions and a remembered spell, a WHO button sits just above the RECAST tab. A tap opens the
+// list and it stays open; the next tap picks a champion (or, anywhere else, closes it).
+static bool recastSticky = false;
+static const Rect WHO_BUTTON = { TAB_EDGE + TAB_RECAST * (TAB_W + TAB_GAP), 178, TAB_W, 26 };
+static bool whoButtonShown(void)
+{
+  if (layout != LAYOUT_DUNGEON || recastChooser || n3ds_engine_party_size() < 2) return false;
+  for (int c = 0; c < n3ds_engine_party_size() && c < 4; c++) if (lastSpell[c][0]) return true;
+  return false;
+}
 
 static void drawRecastChooser(u16 *fb)
 {
@@ -894,6 +914,13 @@ static void drawTabs(u16 *fb)
   bool party = n3ds_engine_party_size() > 0;
   bool haveSpell = lastCaster >= 0 && lastCaster < n3ds_engine_party_size();
   if (recastChooser) drawRecastChooser(fb);
+  if (whoButtonShown()) {
+    const Rect &r = WHO_BUTTON;
+    fillRect(fb, BOT_W, r.x, r.y, r.w, r.h, face);
+    frameRect(fb, BOT_W, r.x, r.y, r.w, r.h, edge);
+    fillRect(fb, BOT_W, r.x + 1, r.y + r.h - 2, r.w - 2, 1, kHShade);
+    drawText(fb, BOT_W, r.x + (r.w - 3 * 8) / 2, r.y + 9, "WHO", text);
+  }
   for (int i = 0; i < NUM_TABS; i++) {
     Rect r = tabRect(i);
     bool lit = (i == TAB_FIGHT && fightShown()) || (i == TAB_SPELL && showSpell && !fightShown()) ||
@@ -1209,6 +1236,21 @@ static void handleTouch(u32 held)
       touching = true;
       dbgTX = t.px; dbgTY = t.py; presentPending = topDirty = true;
       touchOnButton = false;
+      if (recastSticky) {   // the WHO list is open: this tap picks a champion, or closes the list
+        touchOnButton = true;
+        if (layout == LAYOUT_DUNGEON)
+          for (int c = 0; c < 4; c++) if (inRect(chooserButton(c), t.px, t.py) && c < n3ds_engine_party_size() && lastSpell[c][0]) { playClick(); recastSpell(c); }
+        recastSticky = recastChooser = false;
+        presentPending = topDirty = true;
+        return;
+      }
+      if (whoButtonShown() && inRect(WHO_BUTTON, t.px, t.py)) {
+        touchOnButton = true;
+        playClick();
+        recastSticky = recastChooser = true;
+        presentPending = topDirty = true;
+        return;
+      }
       if (layout == LAYOUT_DUNGEON) {   // 3DS-only tabs fire on press
         for (int i = 0; i < NUM_TABS; i++) {
           if (!inRect(tabRect(i), t.px, t.py)) continue;
@@ -1311,6 +1353,12 @@ static bool exitSaveAvailable(void)
   return exitSaveState == 0 && n3ds_engine_exit_save_possible()
       && (n3ds_engine_in_dungeon_view() || n3ds_engine_inventory_open());
 }
+// START > SAVE may be tried again after a failed save (state 4): the card may have room now.
+static bool menuSaveAvailable(void)
+{
+  return (exitSaveState == 0 || exitSaveState == 4) && n3ds_engine_exit_save_possible()
+      && (n3ds_engine_in_dungeon_view() || n3ds_engine_inventory_open());
+}
 // EXIT GAME was confirmed. Returns true to quit now, false to keep the game running
 // while it saves (n3ds_poll quits once the engine says the file is written).
 static bool beginExit(void)
@@ -1319,7 +1367,7 @@ static bool beginExit(void)
     printf("[n3ds] exit save to slot 4\n");
     exitSaveState = 1;
     exitSaveT0 = svcGetSystemTick();
-    n3ds_engine_exit_save_start();
+    n3ds_engine_exit_save_start(4);
     return false;
   }
   flushSettings(true);
@@ -1348,7 +1396,7 @@ bool n3ds_poll(void)
       printf("[n3ds] HOME close: exit save to slot 4\n");
       exitSaveState = 1;
       exitSaveT0 = svcGetSystemTick();
-      n3ds_engine_exit_save_start();
+      n3ds_engine_exit_save_start(4);
     } else printf("[n3ds] HOME close: no exit save (state %d)\n", exitSaveState);
   }
   if (homeClose && exitSaveState != 1 && exitSaveState != 2) { flushSettings(true); return false; }
@@ -1360,7 +1408,11 @@ bool n3ds_poll(void)
   if (exitSaveState == 1) {             // saving: the engine runs, input waits
     hidScanInput();
     if (svcGetSystemTick() - exitSaveT0 > (u64)SYSCLOCK_ARM11 * (homeClose ? 6 : 15)) {
-      if (saveOnly) { printf("[n3ds] SAVE: no answer in time\n"); saveOnly = false; exitSaveState = 4; return true; }
+      if (saveOnly) {
+        printf("[n3ds] SAVE: no answer in time\n");
+        n3ds_note_message(15, "\nNOT SAVED: THE GAME DID NOT ANSWER.\n");
+        saveOnly = false; exitSaveState = 4; return true;
+      }
       printf("[n3ds] exit save: no answer in time, exiting\n");
       flushSettings(true);
       return false;
@@ -1368,12 +1420,17 @@ bool n3ds_poll(void)
     return true;
   }
   if (exitSaveState == 2 && saveOnly) {   // START > SAVE finished: back to the game
-    printf("[n3ds] SAVE written (slot 4)\n");
+    printf("[n3ds] SAVE written (slot 3)\n");
+    n3ds_note_message(15, "\nGAME SAVED TO SLOT 3.\n");   // the engine's direct save path says nothing itself
     saveOnly = false; exitSaveState = 0;
     armSuppress = true; presentPending = topDirty = true;
   }
   if (exitSaveState == 2) { printf("[n3ds] exit save written\n"); flushSettings(true); return false; }
-  if (exitSaveState == 3) { printf("[n3ds] %s FAILED\n", saveOnly ? "SAVE" : "exit save"); saveOnly = false; exitSaveState = 4; }
+  if (exitSaveState == 3) {
+    printf("[n3ds] %s FAILED\n", saveOnly ? "SAVE" : "exit save");
+    n3ds_note_message(15, saveOnly ? "\nSAVE FAILED: NOT SAVED. IS THE SD CARD FULL?\n" : "\nEXIT SAVE FAILED: NOT SAVED.\n");
+    saveOnly = false; exitSaveState = 4;
+  }
   flushSettings(false);
   hidScanInput();
   u32 down = remapKeys(hidKeysDown()), held = remapKeys(hidKeysHeld());
@@ -1413,10 +1470,10 @@ bool n3ds_poll(void)
     if (r == 1) n3ds_send_key(0x1b, 0x29);                                        // FREEZE: Esc, the game's freeze
     else if (r == 2) manualRequested = true;
     else if (r == 3) return !beginExit();
-    else if (r == 4 && exitSaveAvailable()) {   // SAVE: slot 4, then play on
-      printf("[n3ds] SAVE to slot 4\n");
+    else if (r == 4 && menuSaveAvailable()) {   // SAVE: slot 3 (its own slot: EXIT GAME's save never replaces it), then play on
+      printf("[n3ds] SAVE to slot 3\n");
       saveOnly = true; exitSaveState = 1; exitSaveT0 = svcGetSystemTick();
-      n3ds_engine_exit_save_start();
+      n3ds_engine_exit_save_start(3);
     }
     return true;
   }
@@ -1635,7 +1692,7 @@ static void manLayout(int sec)
   while (manLineCount && manLines[manLineCount - 1].kind == ML_BLANK) manLineCount--;
 }
 
-enum { MAN_HEAD_H = 20, MAN_LINE_H = 10, MAN_TEXT_Y = 26, MAN_VISIBLE = 20, MAN_X = 6 };
+enum { MAN_HEAD_H = 20, MAN_LINE_H = 12, MAN_TEXT_Y = 26, MAN_VISIBLE = 16, MAN_X = 6 };   // 12 px line pitch (was 10: dense)
 
 static void manDrawTop(u16 *fb)
 {
@@ -1672,9 +1729,12 @@ static void manDrawTop(u16 *fb)
     fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, kHShade);
     fillRect(fb, TOP_W, TOP_W - 5, thumbY, 4, thumbH, gold);
   }
-  // the house footer wording (8 px font: 50 letters across, so no colons and tighter gaps; the
-  // left-hand line is exactly 50 letters and starts at the edge: at x 4 its last letter was cut)
-  drawText(fb, TOP_W, leftyOn ? 0 : MAN_X, TOP_H - 11, leftyOn ? "STICKS SCROLL ABXY, L/R SECTION D-DOWN/START CLOSE" : "STICKS SCROLL  D-PAD, L/R SECTION  B/START CLOSE", dim);
+  // the house footer wording (8 px font: 50 letters across, so no colons and tighter gaps);
+  // both lines are centred and at most 49 letters, so they keep a margin at each edge
+  {
+    const char *foot = leftyOn ? "STICKS SCROLL  ABXY L/R SECTION  D-DN/START CLOSE" : "STICKS SCROLL  D-PAD, L/R SECTION  B/START CLOSE";
+    drawText(fb, TOP_W, (TOP_W - (int)strlen(foot) * 8) / 2, TOP_H - 11, foot, dim);
+  }
 }
 
 static Rect manButton(int i, int count)   // section buttons in two columns, Close last
@@ -1824,9 +1884,10 @@ static void showManual(void)
 
 // ---------------------------------------------------------------------------
 // START: the port menu (house style, claude/3ds-look-and-feel.md)
-// RESUME, FREEZE (the game's own freeze: GAME FROZEN until you click), MANUAL,
-// LEFT HAND and EXIT GAME (asks first, focus on NO). The game does not run while
-// the menu is open. Returns: 0 resume, 1 freeze, 2 manual, 3 exit, 4 save (slot 4, then play on).
+// RESUME, SAVE (slot 3, then play on), FREEZE (the game's own freeze: GAME FROZEN until
+// you tap), MANUAL, LEFT HAND and EXIT GAME (asks first, focus on NO; saves to slot 4).
+// The game does not run while the menu is open. Returns: 0 resume, 1 freeze, 2 manual,
+// 3 exit, 4 save.
 // ---------------------------------------------------------------------------
 static int portMenu(bool startOnExit)
 {
@@ -1835,10 +1896,16 @@ static int portMenu(bool startOnExit)
   bool confirm = startOnExit;
   if (confirm) focus = 1;
   const bool exitSave = exitSaveAvailable();
-  const bool saveFailed = exitSaveState == 4;   // the last exit save failed: say so
+  const bool menuSave = menuSaveAvailable();
+  const bool saveFailed = exitSaveState == 4;   // the last save failed: say so
+  // why SAVE is greyed out, in the player's words (CSB-X1)
+  const char *whySave = menuSave ? "SAVE writes slot 3. EXIT GAME saves to slot 4."
+                      : n3ds_engine_party_size() == 0 ? "SAVE needs a party: tap a mirror first."
+                      : !(n3ds_engine_in_dungeon_view() || n3ds_engine_inventory_open()) ? "SAVE works in the dungeon, not on this screen."
+                      : "SAVE is not possible just now.";
   bool waitRelease = true;   // the press that opened the menu may still be down
   // SAVE is greyed out (no click, no press, skipped by the D-pad) wherever the exit save is not allowed
-  auto enabled = [&](int i) { return confirm || i != M_SAVE || exitSave; };
+  auto enabled = [&](int i) { return confirm || i != M_SAVE || menuSave; };
   auto rectOf = [&](int i, int &x, int &y, int &w, int &h) {
     if (!confirm) { const int y0 = 28, gap = 4; h = (BOT_H - 6 - y0 - gap * (M_COUNT - 1)) / M_COUNT; x = 6; w = BOT_W - 12; y = y0 + i * (h + gap); }
     else { x = i == 0 ? 6 : 164; y = 120; w = 150; h = 112; }
@@ -1870,25 +1937,32 @@ static int portMenu(bool startOnExit)
       fillRect(t, TOP_W, 0, 0, TOP_W, 22, kHFace);
       drawText(t, TOP_W, 8, 7, "DUNGEON MASTER / CHAOS STRIKES BACK", kHGold);
       drawText(t, TOP_W, TOP_W - 8 - 6 * 8, 7, "PAUSED", kHWhite);
-      drawText(t, TOP_W, 8, 40, !confirm ? "The game waits while this menu is open."
-                                : saveFailed ? "Not saved (the save failed). Exit anyway?" : "Exit the game?", kHWhite);
-      drawText(t, TOP_W, 8, 58, !confirm ? (exitSave ? "SAVE writes slot 4 (EXIT GAME does too)." : "SAVE is greyed out: not in normal play.")
-                                : exitSave ? "The game is saved first to slot 4." : "Anything you have not saved is lost.", kHGrey);
-      if (confirm && exitSave) drawText(t, TOP_W, 8, 72, "Load it from slot 4 next time.", kHGrey);
-      if (!confirm) drawText(t, TOP_W, 8, 72, "FREEZE freezes the game (click to go on).", kHGrey);
+      // The exit question and its one sentence are on the touch screen, by the buttons; the
+      // top card only adds what comes next (CSB-U3: it said the same thing in other words).
+      drawText(t, TOP_W, 8, 40, !confirm ? "The game waits while this menu is open." : "Answer on the touch screen.", kHWhite);
+      if (!confirm) drawText(t, TOP_W, 8, 58, whySave, kHGrey);
+      if (!confirm && saveFailed) drawText(t, TOP_W, 8, 100, "The last save FAILED. Try SAVE again.", kHGold);
+      if (confirm && exitSave) drawText(t, TOP_W, 8, 58, "Next time: RESUME at the gate, then slot 4.", kHGrey);
+      if (!confirm) drawText(t, TOP_W, 8, 72, "FREEZE keeps the game paused after this menu", kHGrey);
+      if (!confirm) drawText(t, TOP_W, 8, 84, "closes; tap the touch screen to go on.", kHGrey);
       if (!confirm) drawText(t, TOP_W, 8, 206, "Build " PORT_VERSION, kHGrey);
-      drawHintStrip(t, TOP_W, confirm ? "A choose   B no" : "A choose   B / START resume");
+      // hints name the buttons that really work (left-hand mode swaps the D-pad and A/B/X/Y)
+      drawHintStrip(t, TOP_W, confirm ? (leftyOn ? "D-Right choose   D-Down no" : "A choose   B no")
+                                      : (leftyOn ? "D-Right choose   D-Down / START resume" : "A choose   B / START resume"));
     }
     u16 *b = (u16 *)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
     fillRect(b, BOT_W, 0, 0, BOT_W, BOT_H, kHBg);
     fillRect(b, BOT_W, 0, 0, BOT_W, 22, kHFace);
     drawText(b, BOT_W, 8, 7, confirm ? "EXIT GAME" : "MENU", kHGold);
-    if (confirm) { drawText(b, BOT_W, 8, 40, saveFailed ? "Not saved (save failed)." : "Exit the game?", kHWhite); drawText(b, BOT_W, 8, 58, exitSave ? "Saved first to slot 4." : "Unsaved progress is lost.", kHGrey); }
+    if (confirm) {
+      drawText(b, BOT_W, 8, 40, saveFailed ? "Not saved (save failed). Exit anyway?" : "Exit the game?", kHWhite);
+      drawText(b, BOT_W, 8, 58, saveFailed ? "Unsaved progress is lost." : exitSave ? "Saved first to slot 4." : "Unsaved progress is lost.", kHGrey);
+    }
     for (int i = 0; i < nb; i++) {
       int x, y, w, h; rectOf(i, x, y, w, h);
       const bool pr = pressFrames > 0 && i == pressed;
       const char *l = confirm ? (i == 0 ? "YES, EXIT" : "NO")
-                    : i == M_RESUME ? "RESUME" : i == M_SAVE ? "SAVE (SLOT 4)" : i == M_FREEZE ? "FREEZE" : i == M_MANUAL ? "MANUAL"
+                    : i == M_RESUME ? "RESUME" : i == M_SAVE ? "SAVE (SLOT 3)" : i == M_FREEZE ? "FREEZE" : i == M_MANUAL ? "MANUAL"
                     : i == M_LEFTY ? (leftyOn ? "LEFT HAND: ON" : "LEFT HAND: OFF") : "EXIT GAME";
       const bool off = !enabled(i);
       fillRect(b, BOT_W, x, y, w, h, pr ? kHPress : off ? kHShade : kHFace);
@@ -1921,39 +1995,92 @@ static int portMenu(bool startOnExit)
 }
 
 // ---------------------------------------------------------------------------
-// Message box (bottom-screen console, A = OK/Yes, B = No)
+// Message box, in the house style: the text on the top screen, one button (OK) or two
+// (YES / NO, focus on NO) on the touch screen. Tap, or D-pad and A; B answers NO.
+// (It was a raw text console: no buttons to tap, a different look. CSB-Q3.)
 // ---------------------------------------------------------------------------
 bool n3ds_message_box(const char *msg, const char *title, bool yesno)
 {
-  static PrintConsole con;
-  // consoleInit() points stdout/stderr at the bottom-screen console; remember where they went
-  // (the debug log, when on) and put them back afterwards (CSB-05).
-  const devoptab_t *savedOut = devoptab_list[STD_OUT], *savedErr = devoptab_list[STD_ERR];
-  consoleInit(GFX_BOTTOM, &con);
-  consoleSelect(&con);
-  consoleClear();
-  printf("\x1b[1;1H\x1b[33m%s\x1b[0m\n\n%s\n\n", title ? title : "CSB", msg ? msg : "");
-  if (leftyOn) printf(yesno ? "D-Pad right = Yes    D-Pad down = No\n" : "Press D-Pad right to continue\n");
-  else printf(yesno ? "A = Yes    B = No\n" : "Press A to continue\n");
-  bool result = true;
-  while (aptMainLoop()) {
+  enum { COLS = 48, MAXL = 14 };
+  static char lines[MAXL][COLS + 1];
+  int nl = 0;
+  {   // word-wrap the message to 48 letters a line
+    const char *p = msg ? msg : "";
+    while (*p && nl < MAXL) {
+      int len = 0, lastSpace = -1;
+      while (p[len] && p[len] != '\n' && len < COLS) { if (p[len] == ' ') lastSpace = len; len++; }
+      int take = len, skip = 0;
+      if (p[len] == '\n') skip = 1;
+      else if (p[len] && lastSpace > 0) { take = lastSpace; skip = 1; }
+      memcpy(lines[nl], p, take); lines[nl][take] = 0;
+      for (char *c = lines[nl]; *c; c++) if ((unsigned char)*c < 32 || (unsigned char)*c > 126) *c = ' ';
+      nl++;
+      p += take + skip;
+    }
+  }
+  char head[40];
+  snprintf(head, sizeof head, "%.38s", title && *title ? title : "DUNGEON MASTER");
+  for (char *c = head; *c; c++) if ((unsigned char)*c < 32 || (unsigned char)*c > 126) *c = ' ';
+  const int nb = yesno ? 2 : 1;
+  int focus = yesno ? 1 : 0, pressed = -1, pressFrames = 0, chosen = -1;
+  bool waitRelease = true;
+  auto rectOf = [&](int i, int &x, int &y, int &w, int &h) {
+    if (yesno) { x = i == 0 ? 6 : 164; y = 120; w = 150; h = 112; }
+    else { x = 6; y = 120; w = BOT_W - 12; h = 112; }
+  };
+  DBG("[n3ds] message box: %s\n", msg ? msg : "");
+  while (aptMainLoop() && chosen < 0) {
     hidScanInput();
-    u32 kd = remapKeys(hidKeysDown());
-    if (kd & KEY_A) { result = true; break; }
-    if (yesno && (kd & KEY_B)) { result = false; break; }
-    gfxFlushBuffers();
-    gfxScreenSwapBuffers(GFX_BOTTOM, false);   // the top screen keeps the last game frame
+    const u32 kd = remapKeys(hidKeysDown()), kh = hidKeysHeld();
+    if (waitRelease && !(kh & (KEY_TOUCH | KEY_A | KEY_B | KEY_X | KEY_Y | KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT | KEY_START))) waitRelease = false;
+    int hit = -1;
+    if (!pressFrames && !waitRelease) {
+      if (yesno && (kd & (KEY_DUP | KEY_DLEFT | KEY_DDOWN | KEY_DRIGHT))) focus = 1 - focus;
+      if (kd & KEY_A) hit = focus;
+      if (yesno && (kd & KEY_B)) hit = 1;
+      if (kd & KEY_TOUCH) {
+        touchPosition t; hidTouchRead(&t);
+        for (int i = 0; i < nb; i++) { int x, y, w, h; rectOf(i, x, y, w, h); if (t.px >= x && t.px < x + w && t.py >= y && t.py < y + h) hit = i; }
+      }
+    }
+    if (hit >= 0) { playClick(); pressed = hit; pressFrames = 6; focus = hit; }
+    for (int eye = 0; eye < 2; eye++) {
+      u16 *t = (u16 *)gfxGetFramebuffer(GFX_TOP, eye ? GFX_RIGHT : GFX_LEFT, NULL, NULL);
+      fillRect(t, TOP_W, 0, 0, TOP_W, TOP_H, kHBg);
+      fillRect(t, TOP_W, 0, 0, TOP_W, 22, kHFace);
+      drawText(t, TOP_W, 8, 7, head, kHGold);
+      for (int i = 0; i < nl; i++) drawText(t, TOP_W, 8, 34 + i * 13, lines[i], kHWhite);
+      drawHintStrip(t, TOP_W, yesno ? (leftyOn ? "D-Right choose   D-Down no" : "A choose   B no")
+                                    : (leftyOn ? "D-Right OK" : "A OK"));
+    }
+    u16 *b = (u16 *)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+    fillRect(b, BOT_W, 0, 0, BOT_W, BOT_H, kHBg);
+    fillRect(b, BOT_W, 0, 0, BOT_W, 22, kHFace);
+    drawText(b, BOT_W, 8, 7, yesno ? "QUESTION" : "MESSAGE", kHGold);
+    drawText(b, BOT_W, 8, 40, "The message is on the top screen.", kHGrey);
+    for (int i = 0; i < nb; i++) {
+      int x, y, w, h; rectOf(i, x, y, w, h);
+      const bool pr = pressFrames > 0 && i == pressed;
+      const char *l = yesno ? (i == 0 ? "YES" : "NO") : "OK";
+      fillRect(b, BOT_W, x, y, w, h, pr ? kHPress : kHFace);
+      frameRect(b, BOT_W, x, y, w, h, kHEdge);
+      if (!pr) fillRect(b, BOT_W, x + 1, y + h - 2, w - 2, 1, kHShade);
+      const int len = (int)strlen(l);
+      drawText(b, BOT_W, x + (w - len * 8) / 2 + (pr ? 1 : 0), y + (h - 8) / 2 + (pr ? 1 : 0), l, pr ? rgb565(0, 0, 0) : kHWhite);
+      if (i == focus && !pr) { frameRect(b, BOT_W, x - 1, y - 1, w + 2, h + 2, kHGold); frameRect(b, BOT_W, x - 2, y - 2, w + 4, h + 4, kHGold); }
+    }
+    gfxFlushBuffers(); gfxSwapBuffers(); gspWaitForVBlank();
+    if (pressFrames > 0 && --pressFrames == 0) { chosen = pressed; pressed = -1; }
+  }
+  while (aptMainLoop()) {   // let go before the game sees the buttons again
+    hidScanInput();
+    if (!(hidKeysHeld() & (KEY_TOUCH | KEY_A | KEY_B | KEY_START | KEY_SELECT))) break;
     gspWaitForVBlank();
   }
-  // Give the bottom screen back to the game.
-  consoleClear();
-  devoptab_list[STD_OUT] = savedOut;
-  devoptab_list[STD_ERR] = savedErr;
-  setupScreens();
   n3ds_force_redraw();
   presentPending = topDirty = true;
   armSuppress = true;
-  return result;
+  return yesno ? chosen == 0 : true;
 }
 
 // ---------------------------------------------------------------------------
