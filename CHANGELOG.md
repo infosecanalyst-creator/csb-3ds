@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-27
+
+- Same look as the other 3DS ports (cross-port pass): the START menu is in the house order, RESUME, MANUAL, SAVE GAME (SLOT 3), FREEZE, LEFT HAND, EXIT GAME (SAVE GAME was second and MANUAL fourth). Nothing was added or taken away.
+- The exit question's buttons read YES / NO (was "YES, EXIT"); its second line is "It is saved first (slot 4)." or "Not saved here: progress since your last save is lost."
+- The manual's footer uses the house words, "Sticks: scroll   D-Pad, L / R: section   B / START: close", on two lines (the 8 px font holds 50 letters across; it was a shortened line in capitals without colons). Left-hand mode: "A/B/X/Y, L / R: section" and "D-Down / START: close".
+
 ## 2026-11-21
 
 - Tested with a party for the first time (emulator): recruit a champion, save, exit, start again, RESUME, load, play on. It works; these fixes came out of it.

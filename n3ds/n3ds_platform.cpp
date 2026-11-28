@@ -1736,11 +1736,14 @@ static void manDrawTop(u16 *fb)
     fillRect(fb, TOP_W, TOP_W - 4, trackY, 2, trackH, kHShade);
     fillRect(fb, TOP_W, TOP_W - 5, thumbY, 4, thumbH, gold);
   }
-  // the house footer wording (8 px font: 50 letters across, so no colons and tighter gaps);
-  // both lines are centred and at most 49 letters, so they keep a margin at each edge
+  // the house footer, in the house words (cross-port pass): the 8 px font holds 50 letters
+  // across and the sentence has 57, so it is split over two centred lines below the text
+  // (the last text line ends at y 214), like FreeSpace 2's
   {
-    const char *foot = leftyOn ? "STICKS SCROLL  ABXY L/R SECTION  D-DN/START CLOSE" : "STICKS SCROLL  D-PAD, L/R SECTION  B/START CLOSE";
-    drawText(fb, TOP_W, (TOP_W - (int)strlen(foot) * 8) / 2, TOP_H - 11, foot, dim);
+    const char *f1 = leftyOn ? "Sticks: scroll   A/B/X/Y, L / R: section" : "Sticks: scroll   D-Pad, L / R: section";
+    const char *f2 = leftyOn ? "D-Down / START: close" : "B / START: close";
+    drawText(fb, TOP_W, (TOP_W - (int)strlen(f1) * 8) / 2, TOP_H - 20, f1, dim);
+    drawText(fb, TOP_W, (TOP_W - (int)strlen(f2) * 8) / 2, TOP_H - 10, f2, dim);
   }
 }
 
@@ -1891,14 +1894,14 @@ static void showManual(void)
 
 // ---------------------------------------------------------------------------
 // START: the port menu (house style, claude/3ds-look-and-feel.md)
-// RESUME, SAVE (slot 3, then play on), FREEZE (the game's own freeze: GAME FROZEN until
-// you tap), MANUAL, LEFT HAND and EXIT GAME (asks first, focus on NO; saves to slot 4).
+// RESUME, MANUAL, SAVE GAME (slot 3, then play on), FREEZE (the game's own freeze: GAME
+// FROZEN until you tap), LEFT HAND and EXIT GAME (house order, cross-port pass) (asks first, focus on NO; saves to slot 4).
 // The game does not run while the menu is open. Returns: 0 resume, 1 freeze, 2 manual,
 // 3 exit, 4 save.
 // ---------------------------------------------------------------------------
 static int portMenu(bool startOnExit)
 {
-  enum { M_RESUME, M_SAVE, M_FREEZE, M_MANUAL, M_LEFTY, M_EXIT, M_COUNT };
+  enum { M_RESUME, M_MANUAL, M_SAVE, M_FREEZE, M_LEFTY, M_EXIT, M_COUNT };
   int focus = 0, pressed = -1, pressFrames = 0, chosen = -1;
   bool confirm = startOnExit;
   if (confirm) focus = 1;
@@ -1906,10 +1909,10 @@ static int portMenu(bool startOnExit)
   const bool menuSave = menuSaveAvailable();
   const bool saveFailed = exitSaveState == 4;   // the last save failed: say so
   // why SAVE is greyed out, in the player's words (CSB-X1)
-  const char *whySave = menuSave ? "SAVE writes slot 3. EXIT GAME saves to slot 4."
-                      : n3ds_engine_party_size() == 0 ? "SAVE needs a party: tap a mirror first."
-                      : !(n3ds_engine_in_dungeon_view() || n3ds_engine_inventory_open()) ? "SAVE works in the dungeon, not on this screen."
-                      : "SAVE is not possible just now.";
+  const char *whySave = menuSave ? "SAVE GAME: slot 3. EXIT GAME: slot 4."
+                      : n3ds_engine_party_size() == 0 ? "SAVE GAME needs a party: tap a mirror first."
+                      : !(n3ds_engine_in_dungeon_view() || n3ds_engine_inventory_open()) ? "SAVE GAME works only in the dungeon."
+                      : "SAVE GAME is not possible just now.";
   bool waitRelease = true;   // the press that opened the menu may still be down
   // SAVE is greyed out (no click, no press, skipped by the D-pad) wherever the exit save is not allowed
   auto enabled = [&](int i) { return confirm || i != M_SAVE || menuSave; };
@@ -1948,7 +1951,7 @@ static int portMenu(bool startOnExit)
       // top card only adds what comes next (CSB-U3: it said the same thing in other words).
       drawText(t, TOP_W, 8, 40, !confirm ? "The game waits while this menu is open." : "Answer on the touch screen.", kHWhite);
       if (!confirm) drawText(t, TOP_W, 8, 58, whySave, kHGrey);
-      if (!confirm && saveFailed) drawText(t, TOP_W, 8, 100, "The last save FAILED. Try SAVE again.", kHGold);
+      if (!confirm && saveFailed) drawText(t, TOP_W, 8, 100, "The last save FAILED. Try SAVE GAME again.", kHGold);
       if (confirm && exitSave) drawText(t, TOP_W, 8, 58, "Next time: RESUME at the gate, then slot 4.", kHGrey);
       if (!confirm) drawText(t, TOP_W, 8, 72, "FREEZE keeps the game paused after this menu", kHGrey);
       if (!confirm) drawText(t, TOP_W, 8, 84, "closes; tap the touch screen to go on.", kHGrey);
@@ -1963,13 +1966,18 @@ static int portMenu(bool startOnExit)
     drawText(b, BOT_W, 8, 7, confirm ? "EXIT GAME" : "MENU", kHGold);
     if (confirm) {
       drawText(b, BOT_W, 8, 40, saveFailed ? "Not saved (save failed). Exit anyway?" : "Exit the game?", kHWhite);
-      drawText(b, BOT_W, 8, 58, saveFailed ? "Unsaved progress is lost." : exitSave ? "Saved first to slot 4." : "Unsaved progress is lost.", kHGrey);
+      // house second line (cross-port pass); the bottom screen holds 39 letters at x 8
+      if (exitSave && !saveFailed) drawText(b, BOT_W, 8, 58, "It is saved first (slot 4).", kHGrey);
+      else {
+        drawText(b, BOT_W, 8, 58, saveFailed ? "Progress since your last save" : "Not saved here: progress since", kHGrey);
+        drawText(b, BOT_W, 8, 70, saveFailed ? "is lost." : "your last save is lost.", kHGrey);
+      }
     }
     for (int i = 0; i < nb; i++) {
       int x, y, w, h; rectOf(i, x, y, w, h);
       const bool pr = pressFrames > 0 && i == pressed;
-      const char *l = confirm ? (i == 0 ? "YES, EXIT" : "NO")
-                    : i == M_RESUME ? "RESUME" : i == M_SAVE ? "SAVE (SLOT 3)" : i == M_FREEZE ? "FREEZE" : i == M_MANUAL ? "MANUAL"
+      const char *l = confirm ? (i == 0 ? "YES" : "NO")
+                    : i == M_RESUME ? "RESUME" : i == M_SAVE ? "SAVE GAME (SLOT 3)" : i == M_FREEZE ? "FREEZE" : i == M_MANUAL ? "MANUAL"
                     : i == M_LEFTY ? (leftyOn ? "LEFT HAND: ON" : "LEFT HAND: OFF") : "EXIT GAME";
       const bool off = !enabled(i);
       fillRect(b, BOT_W, x, y, w, h, pr ? kHPress : off ? kHShade : kHFace);
